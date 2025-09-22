@@ -1,53 +1,37 @@
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <vector>
-#include <iostream>
+#include "Engine.h"
+#include "BlackHole.h"
+#include "Ray.h"
 
 using namespace glm;
 using namespace std;
 
+Engine engine;
+BlackHole sagittariusA(vec2(engine.width/2, 0.0f), 8.54e36); // Mass of Sagittarius A* in kg
+vector<Ray> rays;
+
 int main(void)
 {
-    GLFWwindow* window;
+	for (float y = -engine.height; y < engine.height; y += 1e10)
+	{
+		rays.push_back(Ray(vec2(-engine.width, y), vec2(1.0f, 0.0f)));
+	}
 
-    /* Initialize the library */
-    if (!glfwInit())
-        return -1;
 
-    /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(640, 480, "Black Hole Simulation", NULL, NULL);
-    if (!window)
-    {
-        glfwTerminate();
-        return -1;
-    }
+	while (!glfwWindowShouldClose(engine.window))
+	{
+		engine.Run();
+		sagittariusA.Draw();
 
-    /* Make the window's context current */
-    glfwMakeContextCurrent(window);
+		for (Ray& ray: rays)
+		{
+			ray.Draw();
+			ray.Step();
+		}
 
-    /* Loop until the user closes the window */
-    while (!glfwWindowShouldClose(window))
-    {
-        /* Render here */
-        glClear(GL_COLOR_BUFFER_BIT);
+		glfwSwapBuffers(engine.window);
+		glfwPollEvents();
+	}
 
-        glBegin(GL_TRIANGLES);
-
-		glVertex2f(-0.5f, -0.5f);
-		glVertex2f(0.0f, 0.5f);
-		glVertex2f(0.5f, -0.5f);
-
-		glEnd();
-
-        /* Swap front and back buffers */
-        glfwSwapBuffers(window);
-
-        /* Poll for and process events */
-        glfwPollEvents();
-    }
-
-    glfwTerminate();
-    return 0;
+	glfwTerminate();
+	return 0;
 }
