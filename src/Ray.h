@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "allIncludes.h"
 using namespace std;
 using namespace glm;
@@ -10,11 +10,17 @@ public:
 	double x, y;
 	// polar coordinates
 	double r, phi;
+	double dr, dphi;
+	double d2r, d2phi;
 
 	vec2 direction;
 	vector<vec2> trail;
 
-	Ray(vec2 pos, vec2 dir) : x(pos.x), y(pos.y), direction(dir) {}
+	Ray(vec2 pos, vec2 dir) : x(pos.x), y(pos.y), direction(dir) 
+	{
+		r = hypot(x, y);
+		phi = atan2(y, x);
+	}
 
 	void Draw() {
 		glEnable(GL_BLEND);
@@ -36,11 +42,23 @@ public:
 		glEnd();
 	}
 
-	void Step() {
-		x += direction.x * c;
-		y += direction.y * c;
+	void Step(double eventHorizonRadius, double dλ) {
+		/*r = hypot(x, y);
+		phi = atan2(y, x);*/
 
-		trail.push_back({x, y});
+		if (r < eventHorizonRadius)
+			return;
+
+		dr += d2r * dλ;
+		dphi += d2phi * dλ;
+
+		r += dr * dλ;
+		phi += dphi * dλ;
+
+		x = r * cos(phi);
+		y = r * sin(phi);
+
+		trail.push_back({ x, y });
 	}
 };
 

@@ -137,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\allIncludes.h" />
+    <ClInclude Include="src\Physics.h" />
     <ClInclude Include="src\Ray.h" />
     <ClInclude Include="src\BlackHole.h" />
     <ClInclude Include="src\Engine.h" />
