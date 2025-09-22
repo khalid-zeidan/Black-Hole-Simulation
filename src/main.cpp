@@ -14,7 +14,7 @@ int main(void)
 {
 	for (float y = -engine.height*3; y < engine.height*3; y += 1e10)
 	{
-		rays.push_back(Ray(vec2(-engine.width, y), vec2(1.0f, 0.0f)));
+		rays.push_back(Ray(vec2(-engine.width, y), vec2(1e8, 0.75e8)));
 	}
 
 
@@ -25,9 +25,9 @@ int main(void)
 
 		for (auto& ray: rays)
 		{
-			GeoDesic(ray, sagittariusA.eventHorizonRadius);
+			RK4Step(ray, sagittariusA.eventHorizonRadius, 1);
+			ray.Step(); 
 			ray.Draw();
-			ray.Step(sagittariusA.eventHorizonRadius, 3); //1e-1
 		}
 
 		glfwSwapBuffers(engine.window);

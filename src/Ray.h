@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "allIncludes.h"
+
 using namespace std;
 using namespace glm;
 
@@ -9,8 +10,8 @@ public:
 	// cartesian coordinates
 	double x, y;
 	// polar coordinates
-	double r, phi;
-	double dr, dphi;
+	double r, phi; // distance from center and angle relative to black hole
+	double dr, dphi; // rate of change of r and phi
 	double d2r, d2phi;
 
 	vec2 direction;
@@ -20,6 +21,9 @@ public:
 	{
 		r = hypot(x, y);
 		phi = atan2(y, x);
+
+		dr = (x * dir.x + y * dir.y) / r;
+		dphi = (x * dir.y - y * dir.x) / (r * r);
 	}
 
 	void Draw() {
@@ -42,19 +46,8 @@ public:
 		glEnd();
 	}
 
-	void Step(double eventHorizonRadius, double dλ) {
-		/*r = hypot(x, y);
-		phi = atan2(y, x);*/
-
-		if (r < eventHorizonRadius)
-			return;
-
-		dr += d2r * dλ;
-		dphi += d2phi * dλ;
-
-		r += dr * dλ;
-		phi += dphi * dλ;
-
+	void Step() {
+		// Update Cartesian coordinates
 		x = r * cos(phi);
 		y = r * sin(phi);
 
