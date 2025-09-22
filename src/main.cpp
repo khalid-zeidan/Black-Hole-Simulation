@@ -14,9 +14,8 @@ int main(void)
 {
 	for (float y = -engine.height*3; y < engine.height*3; y += 1e10)
 	{
-		rays.push_back(Ray(vec2(-engine.width, y), vec2(1e8, 0.75e8)));
+		rays.push_back(Ray(vec2(-engine.width, y), vec2(1e8, 0.0f)));
 	}
-
 
 	while (!glfwWindowShouldClose(engine.window))
 	{
