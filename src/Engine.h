@@ -8,6 +8,11 @@ class Engine
 public:
 	GLFWwindow* window;
 
+	GLuint quadVAO;
+	GLuint texture;
+	GLuint shaderProgram;
+	GLuint computeProgram = 0;
+
 	int WIDTH = 800;
 	int HEIGHT = 600;
 	float width = 100000000000.0f; // Width of the viewport in meters
@@ -17,6 +22,10 @@ public:
 		/* Initialize the library */
 		if (!glfwInit())
 			cerr << "Failed to initialize GLFW" << endl;
+
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Black Hole Simulation", NULL, NULL);
 		

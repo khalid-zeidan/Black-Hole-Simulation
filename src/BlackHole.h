@@ -6,29 +6,22 @@ using namespace glm;
 class BlackHole
 {
 public:
-	vec2 position;
+	vec3 position;
 	double mass;
 	double eventHorizonRadius;
 
-	BlackHole(vec2 pos, double m) : position(pos), mass(m) {
+	BlackHole(vec3 pos, double m) : position(pos), mass(m) {
 		eventHorizonRadius = (2 * G * mass) / (c * c); // Event Horizon radius
 	}
 
-	void Draw() {
-		glBegin(GL_TRIANGLE_FAN);
+	bool Intercept(double x, double y, double z) const {
+		//uses the distance formula sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2) = distance
 
-		glColor3f(1.0f, 0.0f, 0.0f);
-		glVertex2f(position.x, position.y);
-		int numSegments = 100;
-
-		for (int i = 0; i <= numSegments; i++)
-		{
-			float angle = (2 * M_PI * i) / numSegments;
-			float x = position.x + (eventHorizonRadius * cos(angle));
-			float y = position.y + (eventHorizonRadius * sin(angle));
-			glVertex2f(x, y);
-		}
-		glEnd();
+		double dx = x - position.x;
+		double dy = y - position.y;
+		double dz = z - position.z;
+		double distanceSquared = dx * dx + dy * dy + dz * dz;
+		return distanceSquared < (eventHorizonRadius * eventHorizonRadius);
 	}
 };
 

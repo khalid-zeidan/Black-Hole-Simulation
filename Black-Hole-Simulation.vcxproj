@@ -136,6 +136,8 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Camera.h" />
+    <ClInclude Include="src\Scene.h" />
     <ClInclude Include="src\allIncludes.h" />
     <ClInclude Include="src\Physics.h" />
     <ClInclude Include="src\Ray.h" />
