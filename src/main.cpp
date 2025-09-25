@@ -10,12 +10,11 @@ using namespace std;
 
 Engine engine;
 
+#pragma region function declaration
 void start();
 void Update();
 void Draw();
-
-void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-void scroll_callback(GLFWwindow* window, double yoffset);
+#pragma endregion
 
 int main()
 {
@@ -36,8 +35,10 @@ int main()
 
 void start()
 {
-	glfwSetMouseButtonCallback(engine.window, mouseButtonCallback);
-	glfwSetScrollCallback(engine.window, scroll_callback);
+	// for camera inputs
+	glfwSetMouseButtonCallback(engine.window, mouseButtonCallBack);
+	glfwSetCursorPosCallback(engine.window, mouseMoveCallBack);
+	glfwSetScrollCallback(engine.window, scrollCallBack);
 }
 
 void Update() 

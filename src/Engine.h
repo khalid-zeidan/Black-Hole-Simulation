@@ -9,9 +9,7 @@ public:
 	GLFWwindow* window;
 
 	GLuint quadVAO;
-	GLuint texture;
-	GLuint shaderProgram;
-	GLuint computeProgram = 0;
+	GLuint texture; 
 
 	int WIDTH = 800;
 	int HEIGHT = 600;

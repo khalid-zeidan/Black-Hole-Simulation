@@ -2,6 +2,7 @@
 #include "allIncludes.h"
 #include "BlackHole.h"
 #include "Camera.h"
+#include "Object.h"
 
 using namespace std;
 using namespace glm;
@@ -12,10 +13,13 @@ public:
 	BlackHole sagittariusA;
 	Camera camera;
 
-	Scene(vec3 pos, double mass) : sagittariusA(pos, mass)
-	{
+	// position, color, radius
+	vector<Object> objectsData = {
+		{vec3(4e11f, 0.0f, 0.0f), vec4(1.0f, 1.0f, 0.0f, 1.0f), 4e5f},
+		{vec3(0.0f, 4e11f, 4e11f), vec4(0.4f, 0.2f, 1.0f, 1.0f), 4e5f}
+	}; 
 
-	}
+	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) {}
 
 	void Update(int width, int height)
 	{
@@ -41,42 +45,45 @@ public:
 	}
 }scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*
 
-#pragma region Input detection
-void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+#pragma region Camera Input detection
+void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods)
 {
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 	{
 		scene.camera.dragging = true;
-		glfwGetCursorPos(window, &scene.camera.lastMouseX, &scene.camera.lastMouseX);
 		cout << "DRAGGING \n";
 	}
-	else
+	else 
+	{
 		scene.camera.dragging = false;
+		scene.camera.firstMouse = true;
+	}
 }
 
-void mouseMoveCallback(double xpos, double ypos) {
-	if (scene.camera.dragging) {
-		double deltaX = xpos - scene.camera.lastMouseX;
-		double deltaY = ypos - scene.camera.lastMouseY;
-
-		// Update the azimuth and elevation based on the deltas
-		scene.camera.azimuth += deltaX * scene.camera.orbitSpeed;
-		scene.camera.elevation += deltaY * scene.camera.orbitSpeed;
-
-		// Clamp elevation to prevent flipping
-		scene.camera.elevation = glm::clamp(scene.camera.elevation, -glm::pi<float>() / 2.0f + 0.01f, glm::pi<float>() / 2.0f - 0.01f);
+void mouseMoveCallBack(GLFWwindow* window, double xpos, double ypos)
+{
+	if (scene.camera.firstMouse) 
+	{
+		scene.camera.lastMouseX = xpos;
+		scene.camera.lastMouseY = ypos;
+		scene.camera.firstMouse = false;
 	}
 
-	// Always update the last position for the next frame's calculation
+	float deltaX = (float)(xpos - scene.camera.lastMouseX);
+	float deltaY = (float)(scene.camera.lastMouseY - ypos);
+
 	scene.camera.lastMouseX = xpos;
 	scene.camera.lastMouseY = ypos;
+
+	if (scene.camera.dragging) {
+		// Pass the delta values to the camera's rotate method
+		scene.camera.Rotate(deltaX, deltaY);
+	}
 }
 
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+void scrollCallBack(GLFWwindow* window, double xoffset, double yoffset)
 {
-	// xoffset and yoffset are the scroll offsets
-	// xoffset is for horizontal scrolling (not common on a mouse wheel)
-	// yoffset is for vertical scrolling
+	scene.camera.Zoom(yoffset);
 }
 #pragma endregion
 
