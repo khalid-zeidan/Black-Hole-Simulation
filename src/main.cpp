@@ -6,9 +6,7 @@ using namespace std;
 
 Engine& eng = scene.engine;
 
-#pragma region function declaration
 void start();
-#pragma endregion
 
 int main()
 {

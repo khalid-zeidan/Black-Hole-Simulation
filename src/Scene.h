@@ -113,7 +113,7 @@ public:
 	int lineCount;
 
 	GLuint quadShaderProgramID;
-	vector<unsigned char> pixel_data;
+	vector<unsigned char> pixels;
 
 	// position, color, radius
 	//vector<Object> objectsData = {
@@ -128,24 +128,21 @@ public:
 
 		quadShaderProgramID = CompileShader(QUAD_VERTEX_SHADER_SOURCE, QUAD_FRAGMENT_SHADER_SOURCE);
 
-		pixel_data.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
+		pixels.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
     }
 
 	void Update()
 	{
-		for (size_t i = 0; i < engine.WIDTH; i++)
+		for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
 		{
-			for (size_t j = 0; j < engine.HEIGHT / 2;  j++)
-			{
-				pixel_data[(j * engine.WIDTH + i) * 3 + 0] = 255;
-				pixel_data[(j * engine.WIDTH + i) * 3 + 1] = 0;
-				pixel_data[(j * engine.WIDTH + i) * 3 + 2] = 255; // Magenta
-			}
+			pixels[i * 3 + 0] = 255;// R
+			pixels[i * 3 + 1] = 0;	// G
+			pixels[i * 3 + 2] = 0;	// B
 		}
 
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
 		// Use GL_BGR for faster upload if data is stored as R,G,B (though GL_RGB is fine too)
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixel_data.data());
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
