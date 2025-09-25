@@ -2,23 +2,6 @@
 #include "allIncludes.h"
 #include "Ray.h"
 
-//void GeoDesic(Ray& ray, double eventHorizonRadius) 
-//{
-//	double& r = ray.r , phi = ray.phi;
-//
-//	double& dr = ray.dr, dphi = ray.dphi;
-//
-//	double& d2r = ray.d2r, d2phi = ray.d2phi;
-//
-//	d2phi = (1 / r) * dr * dphi;
-//	d2r = (-c * c * eventHorizonRadius) / (2 * r * r) + r * dphi * dphi;
-//
-//	//rate of change of the distance from the blackhole
-//	dr += r * dphi * dphi - (c * c * eventHorizonRadius) / (2 * r * r);
-//	//rate of change of the angle relative to the blackhole
-//	dphi = -2 * dr * dphi / r;	
-//}
-
 // calculate second derivatives
 void getDerivatives(const Ray& ray, double eventHorizonRadius, double& d2r, double& d2phi) {
     d2r = (-c * c * eventHorizonRadius) / (2.0 * ray.r * ray.r) + ray.r * ray.dphi * ray.dphi;

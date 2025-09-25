@@ -14,6 +14,8 @@ public:
 		eventHorizonRadius = (2 * G * mass) / (c * c); // Event Horizon radius
 	}
 
+	// checks if the point of ray intersects the black hole
+	// should then color that pixel black
 	bool Intercept(double x, double y, double z) const {
 		//uses the distance formula sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2) = distance
 

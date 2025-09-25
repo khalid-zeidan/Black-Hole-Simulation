@@ -1,3 +1,4 @@
+#include "allIncludes.h"
 #include "Engine.h"
 #include "BlackHole.h"
 #include "Ray.h"
@@ -8,14 +9,22 @@ using namespace glm;
 using namespace std;
 
 Engine engine;
-Scene scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*
 
-int main(void)
+void start();
+void Update();
+void Draw();
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+void scroll_callback(GLFWwindow* window, double yoffset);
+
+int main()
 {
+	start();
+
 	while (!glfwWindowShouldClose(engine.window))
 	{
-		engine.Run();
-		scene.Render();
+		Update();
+		Draw();
 
 		glfwSwapBuffers(engine.window);
 		glfwPollEvents();
@@ -23,4 +32,22 @@ int main(void)
 
 	glfwTerminate();
 	return 0;
+}
+
+void start()
+{
+	glfwSetMouseButtonCallback(engine.window, mouseButtonCallback);
+	glfwSetScrollCallback(engine.window, scroll_callback);
+}
+
+void Update() 
+{
+	scene.Update(engine.WIDTH, engine.HEIGHT);
+}
+
+void Draw() 
+{
+	engine.Clear();
+
+	scene.Render();
 }

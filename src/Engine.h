@@ -18,6 +18,7 @@ public:
 	float width = 100000000000.0f; // Width of the viewport in meters
 	float height = 75000000000.0f; // Height of the viewport in meters
 
+	// start function
 	Engine() {
 		/* Initialize the library */
 		if (!glfwInit())
@@ -39,7 +40,7 @@ public:
 		glViewport(0, 0, WIDTH, HEIGHT);
 	}
 
-	void Run() {
+	void Clear() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();

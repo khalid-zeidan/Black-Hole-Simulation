@@ -8,16 +8,16 @@ class Ray
 {
 public:
 	// cartesian coordinates
-	double x, y;
+	double x, y, z;
 	// polar coordinates
-	double r, phi; // distance from center and angle relative to black hole
-	double dr, dphi; // rate of change of r and phi
-	double d2r, d2phi;
+	double r, phi, theta; // distance from center and angle relative to black hole
+	double dr, dphi, dtheta; // rate of change of r and phi
+	double d2r, d2phi, d2theta;
 
-	vec2 direction;
+	vec3 direction;
 	vector<vec2> trail;
 
-	Ray(vec2 pos, vec2 dir) : x(pos.x), y(pos.y), direction(dir) 
+	Ray(vec3 pos, vec3 dir) : x(pos.x), y(pos.y), z(pos.z), direction(dir)
 	{
 		r = hypot(x, y);
 		phi = atan2(y, x);
@@ -46,6 +46,8 @@ public:
 		glEnd();
 	}
 
+	// RK4 step function then updates the position
+	// will be removed for object intersections so we can color pixels
 	void Step() {
 		// Update Cartesian coordinates
 		x = r * cos(phi);
