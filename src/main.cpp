@@ -8,8 +8,6 @@ Engine& eng = scene.engine;
 
 #pragma region function declaration
 void start();
-void Update();
-void Draw();
 #pragma endregion
 
 int main()
@@ -18,8 +16,8 @@ int main()
 
 	while (!glfwWindowShouldClose(eng.window))
 	{
-		Update();
-		Draw();
+		scene.Update();
+		scene.Render();
 
 		glfwSwapBuffers(eng.window);
 		glfwPollEvents();
@@ -35,16 +33,4 @@ void start()
 	glfwSetMouseButtonCallback(eng.window, mouseButtonCallBack);
 	glfwSetCursorPosCallback(eng.window, mouseMoveCallBack);
 	glfwSetScrollCallback(eng.window, scrollCallBack);
-}
-
-void Update() 
-{
-	scene.Update(eng.WIDTH, eng.HEIGHT);
-}
-
-void Draw() 
-{
-	scene.engine.Clear();
-
-	scene.Render();
 }

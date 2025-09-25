@@ -1,6 +1,5 @@
 #pragma once
 #include "allIncludes.h"
-#include "Engine.h"
 
 using namespace glm;
 using namespace std;
@@ -16,7 +15,7 @@ class Camera
 
 public:
 
-	float azimuth = 0.0f;			// point from left to right on the sphere 360 degrees
+	float azimuth = 0.0f;			 // point from left to right on the sphere 360 degrees
 	float elevation = -M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
 
 	float sensitivity = 0.01f;
@@ -27,11 +26,6 @@ public:
 	bool firstMouse = true;
 
 	Camera() {}
-
-	void Update()
-	{
-
-	}
 
 	// calculates position in world space based on elevation, zoom and azimuth
 	vec3 calculatePosition() const {

@@ -4,6 +4,8 @@
 #include "Camera.h"
 #include "Object.h"
 #include "Engine.h"
+#include "Ray.h"
+#include "Physics.h"
 
 using namespace std;
 using namespace glm;
@@ -35,6 +37,34 @@ void main()
 )glsl";
 #pragma endregion
 
+#pragma region quad
+const char* QUAD_VERTEX_SHADER_SOURCE = R"glsl(
+#version 330 core
+layout (location = 0) in vec2 aPos;
+layout (location = 1) in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+void main()
+{
+    gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+    TexCoord = aTexCoord;
+}
+)glsl";
+
+const char* QUAD_FRAGMENT_SHADER_SOURCE = R"glsl(
+#version 330 core
+out vec4 FragColor;
+in vec2 TexCoord;
+
+uniform sampler2D screenTexture;
+
+void main()
+{
+    FragColor = texture(screenTexture, TexCoord);
+}
+)glsl";
+#pragma endregion
 #pragma endregion
 
 GLuint CompileShader(const char* vertexSource, const char* fragmentSource)  {
@@ -77,9 +107,13 @@ public:
 	BlackHole sagittariusA;
 	Camera camera;
 
+	// grid stuff
 	GLuint gridShaderProgramID;
 	GLuint gridVAO, gridVBO;
 	int lineCount;
+
+	GLuint quadShaderProgramID;
+	vector<unsigned char> pixel_data;
 
 	// position, color, radius
 	//vector<Object> objectsData = {
@@ -91,26 +125,32 @@ public:
 	{
 		gridShaderProgramID = CompileShader(GRID_VERTEX_SHADER_SOURCE, GRID_FRAGMENT_SHADER_SOURCE);
 		InitGrid();
-	}
 
-	void Update(int width, int height)
+		quadShaderProgramID = CompileShader(QUAD_VERTEX_SHADER_SOURCE, QUAD_FRAGMENT_SHADER_SOURCE);
+
+		pixel_data.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
+    }
+
+	void Update()
 	{
-		camera.Update();
-
-		for (int i = 0; i < width; i++)
+		for (size_t i = 0; i < engine.WIDTH; i++)
 		{
-			for (int j = 0; j < height; j++)
+			for (size_t j = 0; j < engine.HEIGHT / 2;  j++)
 			{
-				// shoot out rays for each pixel in the window
-				// will probably have to translate each pixel position into 
-				// world position :'(
-
-				// then call intersection functions for all objects in the scene 
-				// then color these pixels depending on material
+				pixel_data[(j * engine.WIDTH + i) * 3 + 0] = 255;
+				pixel_data[(j * engine.WIDTH + i) * 3 + 1] = 0;
+				pixel_data[(j * engine.WIDTH + i) * 3 + 2] = 255; // Magenta
 			}
 		}
+
+		glBindTexture(GL_TEXTURE_2D, engine.texture);
+		// Use GL_BGR for faster upload if data is stored as R,G,B (though GL_RGB is fine too)
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixel_data.data());
+		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
+private:
+	//create grid
 	void InitGrid() {
 		// Use a grid size that is manageable for the current camera zoom
 		float size = 1e12f;
@@ -146,8 +186,27 @@ public:
 		glBindVertexArray(0);
 	}
 
-	void Render() const
+	void DrawQuad() const
 	{
+		glDisable(GL_DEPTH_TEST); // The quad is always on top
+
+		glUseProgram(quadShaderProgramID);
+
+		// Bind the texture to Texture Unit 0
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, engine.texture);
+		glUniform1i(glGetUniformLocation(quadShaderProgramID, "screenTexture"), 0);
+
+		// Draw the quad
+		glBindVertexArray(engine.quadVAO);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+
+		glUseProgram(0);
+		glEnable(GL_DEPTH_TEST);
+	}
+
+	void DrawGrid() const {
 		mat4 projection = camera.GetProjectionMatrix((float)engine.WIDTH, (float)engine.HEIGHT);
 		mat4 view = camera.GetViewMatrix();
 		mat4 model = mat4(1.0f);
@@ -169,6 +228,16 @@ public:
 		glBindVertexArray(0);
 		glDisable(GL_DEPTH_TEST);
 	}
+
+public:
+	void Render()
+	{
+		engine.Clear();
+
+		DrawQuad();
+		DrawGrid();
+	}
+
 }scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*
 
 #pragma region Camera Input detection
@@ -214,5 +283,3 @@ void scrollCallBack(GLFWwindow* window, double xoffset, double yoffset)
 	scene.camera.Zoom(yoffset);
 }
 #pragma endregion
-
-

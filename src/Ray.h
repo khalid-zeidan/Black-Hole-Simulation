@@ -10,50 +10,52 @@ public:
 	// cartesian coordinates
 	double x, y, z;
 	// polar coordinates
-	double r, phi, theta; // distance from center and angle relative to black hole
-	double dr, dphi, dtheta; // rate of change of r and phi
-	double d2r, d2phi, d2theta;
+	double r	, phi	, theta;
+	double dr	, dphi	, dtheta;
+	double d2r	, d2phi	, d2theta;
+
+	double E; // Energy
+	double L; // Angular Momentum
 
 	vec3 direction;
-	vector<vec2> trail;
+	double eventHorizionRadius;
 
-	Ray(vec3 pos, vec3 dir) : x(pos.x), y(pos.y), z(pos.z), direction(dir)
+	Ray(vec3 pos, vec3 dir, double EHRadius) : x(pos.x), y(pos.y), z(pos.z), direction(dir), eventHorizionRadius(EHRadius)
 	{
-		r = hypot(x, y);
-		phi = atan2(y, x);
+		r = length(pos);
+		theta = acos(pos.z / r);
+		phi = atan(pos.y, pos.x);
 
-		dr = (x * dir.x + y * dir.y) / r;
-		dphi = (x * dir.y - y * dir.x) / (r * r);
+		//avoids dividing by 0
+		double r_sin_theta = r * sin(theta);
+		if (r_sin_theta == 0.0) r_sin_theta = 1e-10;
+
+		double dx = dir.x, dy = dir.y, dz = dir.z;
+
+		//init coord transformation for velocity
+		dr = sin(theta) * cos(phi) * dx + sin(theta) * sin(phi) * dy + cos(theta) * dz;
+		dtheta = (cos(theta) * cos(phi) * dx + cos(theta) * sin(phi) * dy - sin(theta) * dz) / r;
+		dphi = (-sin(phi) * dx + cos(phi) * dy) / r_sin_theta;
+
+		L = r_sin_theta * r_sin_theta * dphi;
+		double f = 1.0 - eventHorizionRadius / r;
+
+		double dt_dL_sq = (dr * dr) / f + r * r * (dtheta * dtheta + sin(theta) * sin(theta) * dphi * dphi);
+		double dt_dL = sqrt(dt_dL_sq / f);
+
+		double E_sq = (dr * dr) + f * r * r * (dtheta * dtheta + sin(theta) * sin(theta) * dphi * dphi);
+		E = sqrt(E_sq);
 	}
 
-	void Draw() {
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glLineWidth(1.0f);
-
-		size_t N = trail.size();
-		if (N < 2) return;
-
-
-		glBegin(GL_LINE_STRIP);	
-
-		for (size_t i = 0; i < N; ++i)
-		{
-			float alpha = float(i) / float(N-1);
-			glColor4f(1.0f, 1.0f, 1.0f, std::max(alpha, 0.05f));
-			glVertex2f(trail[i].x, trail[i].y);
-		}
-		glEnd();
+	// RK4 step function then update the position
+	void UpdateCartesian() 
+	{
+		x = r * sin(theta) * cos(phi);
+		y = r * sin(theta) * sin(phi);
+		z = r * cos(theta);
 	}
 
-	// RK4 step function then updates the position
-	// will be removed for object intersections so we can color pixels
-	void Step() {
-		// Update Cartesian coordinates
-		x = r * cos(phi);
-		y = r * sin(phi);
-
-		trail.push_back({ x, y });
+	bool intercept() {
+		return r <= eventHorizionRadius;
 	}
 };
-
