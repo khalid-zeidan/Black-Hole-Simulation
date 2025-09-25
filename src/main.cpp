@@ -1,14 +1,10 @@
 #include "allIncludes.h"
-#include "Engine.h"
-#include "BlackHole.h"
-#include "Ray.h"
-#include "Physics.h"
 #include "Scene.h"
 
 using namespace glm;
 using namespace std;
 
-Engine engine;
+Engine& eng = scene.engine;
 
 #pragma region function declaration
 void start();
@@ -20,12 +16,12 @@ int main()
 {
 	start();
 
-	while (!glfwWindowShouldClose(engine.window))
+	while (!glfwWindowShouldClose(eng.window))
 	{
 		Update();
 		Draw();
 
-		glfwSwapBuffers(engine.window);
+		glfwSwapBuffers(eng.window);
 		glfwPollEvents();
 	}
 
@@ -36,19 +32,19 @@ int main()
 void start()
 {
 	// for camera inputs
-	glfwSetMouseButtonCallback(engine.window, mouseButtonCallBack);
-	glfwSetCursorPosCallback(engine.window, mouseMoveCallBack);
-	glfwSetScrollCallback(engine.window, scrollCallBack);
+	glfwSetMouseButtonCallback(eng.window, mouseButtonCallBack);
+	glfwSetCursorPosCallback(eng.window, mouseMoveCallBack);
+	glfwSetScrollCallback(eng.window, scrollCallBack);
 }
 
 void Update() 
 {
-	scene.Update(engine.WIDTH, engine.HEIGHT);
+	scene.Update(eng.WIDTH, eng.HEIGHT);
 }
 
 void Draw() 
 {
-	engine.Clear();
+	scene.engine.Clear();
 
 	scene.Render();
 }

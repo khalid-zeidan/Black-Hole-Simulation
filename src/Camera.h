@@ -17,7 +17,7 @@ class Camera
 public:
 
 	float azimuth = 0.0f;			// point from left to right on the sphere 360 degrees
-	float elevation = M_PI / 2.0f;  // point from up to down on the sphere 180 degrees only
+	float elevation = -M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
 
 	float sensitivity = 0.01f;
 	double zoomSensitivity = 25e9f;
@@ -30,9 +30,7 @@ public:
 
 	void Update()
 	{
-		cout << "Azimuth = " << azimuth << endl;
-		cout << "Elevation = " << elevation << endl;
-		cout << "Zoom = " << radius << endl;
+
 	}
 
 	// calculates position in world space based on elevation, zoom and azimuth
@@ -65,5 +63,10 @@ public:
 		vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		return lookAt(position, target, upVector);
+	}
+
+	mat4 GetProjectionMatrix(float width, float height) const {
+		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 2.0f);
+		// FOV, aspect ratio, near & far plane
 	}
 };

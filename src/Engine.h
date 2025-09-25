@@ -2,6 +2,7 @@
 #include "allIncludes.h"
 
 using namespace std;
+using namespace glm;
 
 class Engine
 {
@@ -16,8 +17,8 @@ public:
 	float width = 100000000000.0f; // Width of the viewport in meters
 	float height = 75000000000.0f; // Height of the viewport in meters
 
-	// start function
-	Engine() {
+	Engine() 
+	{
 		/* Initialize the library */
 		if (!glfwInit())
 			cerr << "Failed to initialize GLFW" << endl;
@@ -35,22 +36,23 @@ public:
 		}
 
 		glfwMakeContextCurrent(window);
+
+		GLenum err = glewInit();
+		if (err != GLEW_OK)
+		{
+			cerr << "Failed to initialize GLEW: " << glewGetErrorString(err) << endl;
+			glfwTerminate();
+			throw std::runtime_error("GLEW initialization failed");
+		}
+
+		// Optional: Check the OpenGL version actually running
+		cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
+
 		glViewport(0, 0, WIDTH, HEIGHT);
 	}
 
 	void Clear() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glMatrixMode(GL_PROJECTION);
-		glLoadIdentity();
-
-		double left = -width;
-		double right = width;
-		double bottom = -height;
-		double top = height;
-
-		glOrtho(left, right, bottom, top, -1.0, 1.0);
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
 	}
 };
 
