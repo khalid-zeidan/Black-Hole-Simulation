@@ -2,6 +2,7 @@
 #include "allIncludes.h"
 #include "Object.h"
 #include "BlackHole.h"
+#include "Camera.h"
 
 using namespace std;
 using namespace glm;
@@ -15,6 +16,20 @@ struct Ray
 
 	double E; // Energy
 	double L; // Angular Momentum
+
+	//void UpdateCartesian()
+	//{
+	//	cartesianPosition.x = r * sin(theta) * cos(phi);
+	//	cartesianPosition.y = r * sin(theta) * sin(phi);
+	//	cartesianPosition.z = r * cos(theta);
+	//}
+
+	void CartesianToPolar(const vec3& cartesian) 
+	{
+		r = length(cartesian);
+		theta = acos(cartesian.z / r);
+		phi = atan(cartesian.y, cartesian.x);
+	}
 };
 
 class RayTracer
@@ -25,20 +40,47 @@ class RayTracer
 public:
 	RayTracer(){}
 
+	static Ray GetInitialRay(const Camera& camera, int x, int y, int WIDTH, int HEIGHT) 
+	{
+		Ray initialRay;
+
+		double normalizedX = (2.0f * x / WIDTH) - 1.0f;
+		double normalizedY = 1 - (2.0f * y / HEIGHT);
+
+		vec3 rayDir = normalize(camera.front +
+								camera.right * (float)normalizedX +
+								camera.up * (float)normalizedY);
+
+		initialRay.cartesianPosition = camera.calculatePosition();
+		initialRay.CartesianToPolar(initialRay.cartesianPosition);
+
+		// calculate initial E, L
+		// calculate initial dr, dphi, dtheta
+		// using ray direction
+
+		return initialRay;
+	}
+
 	vec3 TraceAndGetColor(Ray& initialRay,const BlackHole& blackHole, const vector<Object>& Objects) 
 	{
 		Ray currentRay = initialRay;
 
 		for (int i = 0; i < maxSteps; i++)
 		{
+			// intercept blackhole
 			if (blackHole.Intercept(currentRay.r))
 			{
 				return vec3(255, 0, 0); //return red for now (color of blackhole)
 			}
 
+			// intercept objects
 			for (const auto& object: Objects)
 			{
-				if (distance(currentRay.cartesianPosition, object.position) < blackHole.R_S)
+				double x = currentRay.cartesianPosition.x;
+				double y = currentRay.cartesianPosition.y;
+				double z = currentRay.cartesianPosition.z;
+
+				if (object.Intercept(x, y, z))
 				{
 					return object.color; //return object's color
 				}
@@ -47,7 +89,7 @@ public:
 			RK4STEP(currentRay, blackHole.R_S);
 		}
 
-		return vec3(255, 0, 255); // return magenta if nothing is hit
+		return vec3(255, 0, 255); // return magenta if nothing is hit (will return black soon)
 	}
 
 private:

@@ -63,4 +63,8 @@ public:
 		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 2.0f);
 		// FOV, aspect ratio, near & far plane
 	}
+
+	vec3 front  = vec3(0.0f, 0.0f, -1.0f);
+	vec3 up		= vec3(0.0f, 1.0f, 0.0f);
+	vec3 right  = vec3(1.0f, 0.0f, 0.0f);
 };

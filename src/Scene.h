@@ -108,6 +108,8 @@ public:
 	BlackHole sagittariusA;
 	Camera camera;
 
+	vector<Object> objects;
+
 	// grid stuff
 	GLuint gridShaderProgramID;
 	GLuint gridVAO, gridVBO;
@@ -134,17 +136,27 @@ public:
 
 	void Update()
 	{
-		for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
+		for (int x = 0; x < engine.WIDTH; x++)
 		{
-			Ray ray;
+			for (int y = 0; y < engine.HEIGHT; y++)
+			{
+				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT);
+
+				vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
+
+				int index = (y * engine.WIDTH + x) * 3;
+				pixels[index + 0] = tracedColor.x;// R
+				pixels[index + 1] = tracedColor.y;// G
+				pixels[index + 2] = tracedColor.z;// B
+			}
 		}
 
-		for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
-		{
-			pixels[i * 3 + 0] = 255;// R
-			pixels[i * 3 + 1] = 255;	// G
-			pixels[i * 3 + 2] = 255;	// B
-		}
+		//for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
+		//{
+		//	pixels[i * 3 + 0] = 255;// R
+		//	pixels[i * 3 + 1] = 255;	// G
+		//	pixels[i * 3 + 2] = 255;	// B
+		//}
 
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
 		// Use GL_BGR for faster upload if data is stored as R,G,B (though GL_RGB is fine too)
