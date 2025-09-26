@@ -12,8 +12,8 @@ public:
 	GLuint quadVAO, quadVBO, quadEBO;
 	GLuint texture; 
 
-	int   WIDTH	 = 800;
-	int   HEIGHT = 600;
+	int   WIDTH	 = 400;
+	int   HEIGHT = 300;
 	float width  = 100000000000.0f; // Width of the viewport in meters
 	float height = 75000000000.0f; // Height of the viewport in meters
 

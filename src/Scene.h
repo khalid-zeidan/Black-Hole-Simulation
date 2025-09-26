@@ -108,8 +108,6 @@ public:
 	BlackHole sagittariusA;
 	Camera camera;
 
-	vector<Object> objects;
-
 	// grid stuff
 	GLuint gridShaderProgramID;
 	GLuint gridVAO, gridVBO;
@@ -118,11 +116,11 @@ public:
 	GLuint quadShaderProgramID;
 	vector<unsigned char> pixels;
 
-	// position, color, radius
-	//vector<Object> objectsData = {
-	//	{vec3(4e11f, 0.0f, 0.0f), vec4(1.0f, 1.0f, 0.0f, 1.0f), 4e5f},
-	//	{vec3(0.0f, 4e11f, 4e11f), vec4(0.4f, 0.2f, 1.0f, 1.0f), 4e5f}
-	//}; 
+	// position, radius, color
+	vector<Object> objects = {
+		{vec3(3e9f, 0.0f, 0.0f), 4e5f, vec3(255, 255, 0)},
+		{vec3(0.0f, 3e9f, 4e11f), 4e5f, vec3(255, 0, 0)}
+	}; 
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
 	{
@@ -140,9 +138,10 @@ public:
 		{
 			for (int y = 0; y < engine.HEIGHT; y++)
 			{
-				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT);
+				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
 
 				vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
+				//vec3 tracedColor = vec3(150,100, 60);
 
 				int index = (y * engine.WIDTH + x) * 3;
 				pixels[index + 0] = tracedColor.x;// R
@@ -153,7 +152,7 @@ public:
 
 		//for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
 		//{
-		//	pixels[i * 3 + 0] = 255;// R
+		//	pixels[i * 3 + 0] = 255;	// R
 		//	pixels[i * 3 + 1] = 255;	// G
 		//	pixels[i * 3 + 2] = 255;	// B
 		//}

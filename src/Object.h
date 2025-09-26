@@ -8,7 +8,6 @@ struct Object
 {
 	vec3 position;
 	float radius;
-
 public:
 
 	vec3 color; // rgba
