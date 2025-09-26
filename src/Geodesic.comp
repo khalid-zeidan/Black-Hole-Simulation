@@ -1,169 +1,214 @@
-﻿#version 430
-layout(local_size_x = 16, local_size_y = 16) in;
+﻿#version 430 core
 
-// Output Image Texture
-layout(binding = 0, rgba8) writeonly uniform image2D outImage;
+// This defines the size of a "work group". Think of it as a batch of shader
+// invocations that run together. 16x16 = 256 threads per group is a common size.
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-// Uniform Block: Camera parameters
-layout(std140, binding = 1) uniform Camera {
-    vec3 camPos;     float _pad0;
-    vec3 camRight;   float _pad1;
-    vec3 camUp;      float _pad2;
-    vec3 camForward; float _pad3;
-    float tanHalfFov;
-    float aspect;
-    bool moving;
-    int   _pad4;
-} cam;
+// This is the output texture that our shader will write the final pixel colors to.
+// We bind it to "image unit 0". The 'rgba8' format means 8 bits for Red, Green, Blue, and Alpha.
+layout (rgba8, binding = 0) uniform writeonly image2D destTex;
 
-// Uniform Block: Disk parameters
-layout(std140, binding = 2) uniform Disk {
-    float disk_r1;
-    float disk_r2;
-    float disk_num;
-    float thickness;
-};
+// --- Data Structures (Mirrors of your C++ structs) ---
 
-// Uniform Block: Object parameters (simplified for this example)
-layout(std140, binding = 3) uniform Objects {
-    int numObjects;
-    vec4 objPosRadius[16];
-    vec4 objColor[16];
-    float  mass[16]; 
-};
-
-// CONSTANTS (Based on your Scene.h and RayTracer.h, with adjustment for stability)
-const float SagA_rs = 1.269e10; // Schwarzschild Radius (RS)
-const float D_LAMBDA = 1e5;     // Adjusted from 1e7 for better RK4 stability near RS
-const float MAX_STEPS = 6000.0;
-const double ESCAPE_R = 1e15;   // Increased from 1e30 for testing, but 1e15 is safe too.
-
-// Globals to store hit info (only used if interceptObject is implemented)
-vec4 objectColor = vec4(0.0);
-vec3 hitCenter = vec3(0.0);
-float hitRadius = 0.0;
-
-// Ray structure for the state vector
 struct Ray {
-    float x, y, z, r, theta, phi;
-    float dr, dtheta, dphi;
-    float E, L;
+	dvec3 cartesianPosition;
+
+	double r, phi, theta;    // Position in spherical coordinates
+	double dr, dphi, dtheta; // Velocity based on affine parameter (dlambda)
+
+	double E; // Energy
+	double L; // Angular Momentum
 };
 
-// Function to convert Cartesian (x, y, z) to Polar (r, theta, phi)
-void CartesianToPolar(inout Ray ray) 
-{
-    ray.r = length(vec3(ray.x, ray.y, ray.z));
+struct BlackHole {
+	dvec3 position;
+	double R_S; // Schwarzschild Radius (Event Horizon)
+};
+
+struct SceneObject {
+	dvec3 position;
+	double radius;
+	vec3 color;
+    // GLSL requires padding for struct members to align correctly in memory.
+    // Adding a float here ensures proper alignment for the SSBO.
+	float padding;
+};
+
+// --- Uniforms (Global variables sent from C++) ---
+
+// Data that is the same for ALL shader invocations.
+uniform dvec3 u_cameraPos;
+uniform mat4 u_cameraInverseView; // To transform ray directions
+uniform int u_screenWidth;
+uniform int u_screenHeight;
+
+// We use a Shader Storage Buffer Object (SSBO) for the array of objects.
+// This is more flexible than a uniform for variable-sized arrays.
+layout(std430, binding = 1) buffer ObjectBuffer {
+    SceneObject objects[];
+};
+
+// --- Constants (Mirrored from C++) ---
+const double dLambda = 1e7;
+const int maxSteps = 2000; // Reduced for GPU to prevent timeouts. Adjust as needed.
+
+// --- Global Instance of the Black Hole ---
+// It's a single object, so we can define it as a uniform.
+uniform BlackHole u_blackHole;
+
+
+// --- GLSL Function Declarations ---
+// We need to declare functions before they are used, just like in C++.
+void GetDerivatives(const Ray ray, double R_S, out double d2r, out double d2theta, out double d2phi);
+void RK4STEP(inout Ray ray, double R_S);
+vec3 TraceAndGetColor(inout Ray initialRay);
+Ray GetInitialRay(uvec2 pixelCoord);
+void UpdateCartesian(inout Ray ray);
+
+
+// --- Function Implementations (Translated from C++) ---
+
+void UpdateCartesian(inout Ray ray) {
+    ray.cartesianPosition.x = ray.r * sin(ray.theta) * cos(ray.phi);
+    ray.cartesianPosition.y = ray.r * sin(ray.theta) * sin(ray.phi);
+    ray.cartesianPosition.z = ray.r * cos(ray.theta);
+}
+
+void CartesianToPolar(dvec3 cartesian, out double r, out double theta, out double phi) {
+    r = length(cartesian);
+    if (r < 1e-10) {
+        theta = 0.0;
+        phi = 0.0;
+        return;
+    }
+    theta = acos(cartesian.z / r);
+    phi = atan(cartesian.y, cartesian.x);
+}
+
+bool InterceptBlackHole(double r) {
+    return r <= u_blackHole.R_S;
+}
+
+// Note: Using 'inout' to modify the 'color' parameter if an object is hit.
+bool InterceptObjects(dvec3 pos, out vec3 color) {
+    for (int i = 0; i < objects.length(); ++i) {
+        dvec3 op = pos - objects[i].position;
+        if (dot(op, op) < (objects[i].radius * objects[i].radius)) {
+            color = objects[i].color / 255.0; // Normalize color to 0-1 range
+            return true;
+        }
+    }
+    return false;
+}
+
+
+Ray GetInitialRay(uvec2 pixelCoord) {
+    Ray initialRay;
+
+    // Convert pixel coordinates to normalized device coordinates (-1 to 1)
+    double normalizedX = (2.0 * pixelCoord.x / double(u_screenWidth)) - 1.0;
+    double normalizedY = 1.0 - (2.0 * pixelCoord.y / double(u_screenHeight));
+
+    // Simple perspective projection ray generation
+    vec4 ray_clip = vec4(normalizedX, normalizedY, -1.0, 1.0);
+    vec4 ray_eye = inverse(mat4(0.0)) * ray_clip; // Placeholder for projection matrix if needed
+    vec4 ray_wor4 = u_cameraInverseView * ray_eye;
     
-    // Safety check for black hole center
-    if (ray.r < 1e-10) {
-        ray.r = 1e-10; 
-        ray.theta = 0.0;
-        ray.phi = 0.0;
+    dvec3 rayDir = normalize(dvec3(ray_wor4.xyz));
+
+    initialRay.cartesianPosition = u_cameraPos;
+    CartesianToPolar(initialRay.cartesianPosition, initialRay.r, initialRay.theta, initialRay.phi);
+
+    // Convert cartesian velocity to spherical velocity
+    double dx = rayDir.x, dy = rayDir.y, dz = rayDir.z;
+
+    initialRay.dr = sin(initialRay.theta) * cos(initialRay.phi) * dx + sin(initialRay.theta) * sin(initialRay.phi) * dy + cos(initialRay.theta) * dz;
+    initialRay.dtheta = (cos(initialRay.theta) * cos(initialRay.phi) * dx + cos(initialRay.theta) * sin(initialRay.phi) * dy - sin(initialRay.theta) * dz) / initialRay.r;
+    initialRay.dphi = (-sin(initialRay.phi) * dx + cos(initialRay.phi) * dy) / (initialRay.r * sin(initialRay.theta));
+    
+    double scaleFactor = u_blackHole.R_S;
+    initialRay.dr *= scaleFactor;
+    initialRay.dtheta *= scaleFactor;
+    initialRay.dphi *= scaleFactor;
+
+    double f = 1.0 - u_blackHole.R_S / initialRay.r;
+    double dt_dL = sqrt((initialRay.dr * initialRay.dr) / f + initialRay.r * initialRay.r * (initialRay.dtheta * initialRay.dtheta + sin(initialRay.theta) * sin(initialRay.theta) * initialRay.dphi * initialRay.dphi));
+
+    initialRay.E = f * dt_dL;
+    
+    return initialRay;
+}
+
+vec3 TraceAndGetColor(inout Ray initialRay) {
+    Ray currentRay = initialRay;
+    vec3 objectColor;
+
+    for (int i = 0; i < maxSteps; i++) {
+        if (currentRay.r > 1e12) {
+            return vec3(0.0, 0.0, 0.0); // Escaped to space
+        }
+
+        if (InterceptBlackHole(currentRay.r)) {
+            return vec3(0.0, 0.0, 0.0); // Hit black hole (black)
+        }
+
+        if (InterceptObjects(currentRay.cartesianPosition, objectColor)) {
+            return objectColor; // Hit an object
+        }
+
+        RK4STEP(currentRay, u_blackHole.R_S);
+        UpdateCartesian(currentRay);
+    }
+
+    return vec3(0.0, 0.0, 0.0); // Return black if nothing is hit
+}
+
+void GetDerivatives(const Ray ray, double R_S, out double d2r, out double d2theta, out double d2phi) {
+    double r = ray.r, theta = ray.theta;
+    double dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
+
+    double f = 1.0 - R_S / r;
+    if (abs(f) < 1e-10) { // Check for floating point inaccuracy near zero
+        d2r = d2theta = d2phi = 0.0;
         return;
     }
 
-    // Based on your C++ structure where z is the axis
-    ray.theta = acos(ray.z / ray.r);
-    ray.phi = atan(ray.y, ray.x);
+    double dt_dL = ray.E / f;
+
+    d2r = -(R_S / (2.0 * r * r)) * f * dt_dL * dt_dL
+        + (R_S / (2.0 * r * r * f)) * dr * dr
+        + r * f * (dtheta * dtheta + sin(theta) * sin(theta) * dphi * dphi);
+
+    d2theta = -2.0 * dr * dtheta / r
+        + sin(theta) * cos(theta) * dphi * dphi;
+
+    double sin_theta = sin(theta);
+    if (abs(sin_theta) < 1e-10) {
+        d2phi = 0.0;
+    } else {
+        d2phi = -2.0 * dr * dphi / r
+              - 2.0 * cos(theta) / sin_theta * dtheta * dphi;
+    }
 }
 
-// Function to convert Polar (r, theta, phi) to Cartesian (x, y, z)
-void UpdateCartesian(inout Ray ray)
-{
-    ray.x = ray.r * sin(ray.theta) * cos(ray.phi);
-    ray.y = ray.r * sin(ray.theta) * sin(ray.phi);
-    ray.z = ray.r * cos(ray.theta);
-}
+void RK4STEP(inout Ray ray, double R_S) {
+    // --- K1 ---
+    Ray k1_ray = ray;
+    double k1_d2r, k1_d2theta, k1_d2phi;
+    GetDerivatives(k1_ray, R_S, k1_d2r, k1_d2theta, k1_d2phi);
 
-// -------------------------------------------------------------------
-// 2nd Order Derivatives (Acceleration Components d^2/dλ^2) - from RayTracer::GetDerivatives
-// -------------------------------------------------------------------
-void GetDerivatives(in Ray ray, float R_S, out float d2r, out float d2theta, out float d2phi)
-{
-    float r = ray.r;
-    float theta = ray.theta;
-    float sin_theta = sin(theta);
-    float cos_theta = cos(theta);
-    float f = 1.0 - R_S / r;
-    float f_prime = R_S / (r * r);
-
-    // Common terms
-    float dtheta2 = ray.dtheta * ray.dtheta;
-    float dphi2 = ray.dphi * ray.dphi;
-
-    // d^2r/dλ^2 (Radial Acceleration)
-    d2r = (f_prime / (2.0 * f * f)) * ray.E * ray.E 
-        + (R_S / (2.0 * r * r)) * (ray.dr * ray.dr) 
-        + r * f * dtheta2 
-        + r * f * sin_theta * sin_theta * dphi2 
-        - (f_prime / 2.0) * r * r * (dtheta2 + sin_theta * sin_theta * dphi2) 
-        - (r * r * sin_theta * sin_theta / f) * dphi2 * f_prime; // This term is likely redundant if the geodesic equation is used correctly
-
-    // Standard simplified Schwarzschild radial acceleration
-    float L_sq = ray.L * ray.L;
-    float E_sq = ray.E * ray.E;
-    
-    // A simplified and more standard form for the radial term
-    d2r = (R_S / (2.0 * r * r)) * (ray.dr * ray.dr) 
-        + r * f * dtheta2
-        + r * f * sin_theta * sin_theta * dphi2 
-        - (f_prime * E_sq) / (2.0 * f * f) 
-        + (R_S / (r * r)) * L_sq / (2.0 * r * r * r * sin_theta * sin_theta); // Last term is due to dphi/dlambda, which is related to L
-    
-    // Reverting to a more literal translation of the standard equation
-    d2r = (R_S / (2.0 * r * r * f * f)) * E_sq 
-        - (f * f_prime / 2.0) * (ray.dr * ray.dr) / (f * f) // This is simplified
-        + r * f * dtheta2
-        + r * f * sin_theta * sin_theta * dphi2
-        - (f_prime / 2.0) * r * r * (dtheta2 + sin_theta * sin_theta * dphi2);
-
-    // Let's use the standard simplified form based on constants of motion E and L (assuming equatorial plane for simplicity, $\theta=\pi/2$, $\frac{d\theta}{d\lambda}=0$ is often assumed in tutorials, but we'll try to keep full 3D)
-
-    // Using constants of motion (E and L) simplifies the radial equation significantly for the equatorial plane (dθ/dλ = 0)
-    // d^2r/dλ^2 = (R_S/2r^2) * (1/f^2) * E^2 - (1/r^3) * L^2 * (1 - R_S/r)
-    // Since we are not strictly in the equatorial plane, we need the full equation.
-
-    // d^2r/dλ^2 (Reverting to the user's C++ logic components for compatibility)
-    d2r = (R_S / (2.0 * r * r)) * (ray.dr * ray.dr)
-        + r * f * dtheta2 
-        + r * f * sin_theta * sin_theta * dphi2
-        - (f_prime / (2.0 * f * f)) * E_sq // This term is problematic in the C++ original, simplified
-        + (f_prime / 2.0) * (ray.dr * ray.dr) / f // Corrected for the dt^2 term
-        + (f_prime / 2.0) * r * r * (dtheta2 + sin_theta * sin_theta * dphi2); // Final correct C++ implementation form
-
-    // d^2θ/dλ^2 (Polar Acceleration)
-    d2theta = - (2.0 / r) * ray.dr * ray.dtheta 
-        + sin_theta * cos_theta * dphi2;
-
-    // d^2φ/dλ^2 (Azimuthal Acceleration)
-    d2phi = - (2.0 / r) * ray.dr * ray.dphi 
-        - (2.0 * cos_theta / sin_theta) * ray.dtheta * ray.dphi;
-}
-
-// -------------------------------------------------------------------
-// RK4 Integration Step - from RayTracer::RK4STEP
-// -------------------------------------------------------------------
-void rk4Step(inout Ray ray, float dLambda)
-{
-    // K1
-    float k1_d2r, k1_d2theta, k1_d2phi;
-    GetDerivatives(ray, SagA_rs, k1_d2r, k1_d2theta, k1_d2phi);
-
-    // K2 Ray
+    // --- K2 ---
     Ray k2_ray = ray;
-    k2_ray.r      += 0.5 * dLambda * ray.dr;
-    k2_ray.theta  += 0.5 * dLambda * ray.dtheta;
-    k2_ray.phi    += 0.5 * dLambda * ray.dphi;
+    k2_ray.r      += 0.5 * dLambda * k1_ray.dr;
+    k2_ray.theta  += 0.5 * dLambda * k1_ray.dtheta;
+    k2_ray.phi    += 0.5 * dLambda * k1_ray.dphi;
     k2_ray.dr     += 0.5 * dLambda * k1_d2r;
     k2_ray.dtheta += 0.5 * dLambda * k1_d2theta;
     k2_ray.dphi   += 0.5 * dLambda * k1_d2phi;
+    double k2_d2r, k2_d2theta, k2_d2phi;
+    GetDerivatives(k2_ray, R_S, k2_d2r, k2_d2theta, k2_d2phi);
 
-    // K2 Derivatives
-    float k2_d2r, k2_d2theta, k2_d2phi;
-    GetDerivatives(k2_ray, SagA_rs, k2_d2r, k2_d2theta, k2_d2phi);
-
-    // K3 Ray
+    // --- K3 ---
     Ray k3_ray = ray;
     k3_ray.r      += 0.5 * dLambda * k2_ray.dr;
     k3_ray.theta  += 0.5 * dLambda * k2_ray.dtheta;
@@ -171,12 +216,10 @@ void rk4Step(inout Ray ray, float dLambda)
     k3_ray.dr     += 0.5 * dLambda * k2_d2r;
     k3_ray.dtheta += 0.5 * dLambda * k2_d2theta;
     k3_ray.dphi   += 0.5 * dLambda * k2_d2phi;
+    double k3_d2r, k3_d2theta, k3_d2phi;
+    GetDerivatives(k3_ray, R_S, k3_d2r, k3_d2theta, k3_d2phi);
 
-    // K3 Derivatives
-    float k3_d2r, k3_d2theta, k3_d2phi;
-    GetDerivatives(k3_ray, SagA_rs, k3_d2r, k3_d2theta, k3_d2phi);
-
-    // K4 Ray
+    // --- K4 ---
     Ray k4_ray = ray;
     k4_ray.r      += dLambda * k3_ray.dr;
     k4_ray.theta  += dLambda * k3_ray.dtheta;
@@ -184,166 +227,30 @@ void rk4Step(inout Ray ray, float dLambda)
     k4_ray.dr     += dLambda * k3_d2r;
     k4_ray.dtheta += dLambda * k3_d2theta;
     k4_ray.dphi   += dLambda * k3_d2phi;
+    double k4_d2r, k4_d2theta, k4_d2phi;
+    GetDerivatives(k4_ray, R_S, k4_d2r, k4_d2theta, k4_d2phi);
 
-    // K4 Derivatives
-    float k4_d2r, k4_d2theta, k4_d2phi;
-    GetDerivatives(k4_ray, SagA_rs, k4_d2r, k4_d2theta, k4_d2phi);
-
-    // Final Update
-    // Position Update
-    ray.r      += dLambda / 6.0 * (ray.dr + 2.0 * k2_ray.dr + 2.0 * k3_ray.dr + k4_ray.dr);
-    ray.theta  += dLambda / 6.0 * (ray.dtheta + 2.0 * k2_ray.dtheta + 2.0 * k3_ray.dtheta + k4_ray.dtheta);
-    ray.phi    += dLambda / 6.0 * (ray.dphi + 2.0 * k2_ray.dphi + 2.0 * k3_ray.dphi + k4_ray.dphi);
-    
-    // Velocity Update (d/dλ)
-    ray.dr     += dLambda / 6.0 * (k1_d2r + 2.0 * k2_d2r + 2.0 * k3_d2r + k4_d2r);
-    ray.dtheta += dLambda / 6.0 * (k1_d2theta + 2.0 * k2_d2theta + 2.0 * k3_d2theta + k4_d2theta);
-    ray.dphi   += dLambda / 6.0 * (k1_d2phi + 2.0 * k2_d2phi + 2.0 * k3_d2phi + k4_d2phi);
-
-    // Ensure theta stays between 0 and PI
-    ray.theta = mod(ray.theta, M_PI);
+    // --- Final update
+    ray.r      += (dLambda / 6.0) * (k1_ray.dr + 2.0 * k2_ray.dr + 2.0 * k3_ray.dr + k4_ray.dr);
+    ray.theta  += (dLambda / 6.0) * (k1_ray.dtheta + 2.0 * k2_ray.dtheta + 2.0 * k3_ray.dtheta + k4_ray.dtheta);
+    ray.phi    += (dLambda / 6.0) * (k1_ray.dphi + 2.0 * k2_ray.dphi + 2.0 * k3_ray.dphi + k4_ray.dphi);
+    ray.dr     += (dLambda / 6.0) * (k1_d2r + 2.0 * k2_d2r + 2.0 * k3_d2r + k4_d2r);
+    ray.dtheta += (dLambda / 6.0) * (k1_d2theta + 2.0 * k2_d2theta + 2.0 * k3_d2theta + k4_d2theta);
+    ray.dphi   += (dLambda / 6.0) * (k1_d2phi + 2.0 * k2_d2phi + 2.0 * k3_d2phi + k4_d2phi);
 }
 
+// The main entry point for each shader invocation
+void main() {
+    // gl_GlobalInvocationID is a built-in variable that gives us the unique ID
+    // of the current thread. We use its x and y components as our pixel coordinates.
+    uvec2 pixelCoord = gl_GlobalInvocationID.xy;
 
-// -------------------------------------------------------------------
-// Initial Ray Setup - from RayTracer::GetInitialRay
-// -------------------------------------------------------------------
-Ray initRay(vec3 camPos, vec3 rayDir) 
-{
-    Ray initialRay;
+    // Get the initial ray for this specific pixel.
+    Ray ray = GetInitialRay(pixelCoord);
     
-    // 1. Set Cartesian Position
-    initialRay.x = camPos.x;
-    initialRay.y = camPos.y;
-    initialRay.z = camPos.z;
+    // Trace the ray and find its color.
+    vec3 color = TraceAndGetColor(ray);
 
-    // 2. Convert to Polar
-    CartesianToPolar(initialRay);
-
-    // 3. Convert Cartesian Velocity (rayDir) to Spherical Velocity (d/dλ)
-    float dx = rayDir.x, dy = rayDir.y, dz = rayDir.z;
-    float r = initialRay.r;
-    float theta = initialRay.theta;
-    float phi = initialRay.phi;
-
-    // d/dλ components (initial velocity)
-    initialRay.dr = sin(theta) * cos(phi) * dx + sin(theta) * sin(phi) * dy + cos(theta) * dz;
-    initialRay.dtheta = (cos(theta) * cos(phi) * dx + cos(theta) * sin(phi) * dy - sin(theta) * dz) / r;
-    initialRay.dphi = (-sin(phi) * dx + cos(phi) * dy) / (r * sin(theta));
-
-    // --- CRITICAL FIX: SCALE UP MOMENTUM ---
-    // Scale by R_S to ensure sufficient energy for bending (previously missing)
-    float scaleFactor = SagA_rs; 
-    initialRay.dr *= scaleFactor;
-    initialRay.dtheta *= scaleFactor;
-    initialRay.dphi *= scaleFactor;
-    // ---------------------------------------
-    
-    // 4. Calculate Constants of Motion (L and E)
-    initialRay.L = r * r * sin(theta) * initialRay.dphi;
-    float f = 1.0 - SagA_rs / r;
-    
-    float dt_dL = sqrt((initialRay.dr * initialRay.dr) / f + r * r * (initialRay.dtheta * initialRay.dtheta + sin(theta) * sin(theta) * initialRay.dphi * initialRay.dphi));
-    
-    initialRay.E = f * dt_dL;
-
-    return initialRay;
-}
-
-// Simplified intercept checks (assuming you will implement full object tracing)
-bool intercept(Ray ray, float r_schwarzschild) {
-    // If r is less than or equal to the event horizon (r < RS)
-    return ray.r <= r_schwarzschild; 
-}
-
-bool crossesEquatorialPlane(vec3 prevPos, vec3 newPos) {
-    // Check if the ray crosses the plane where theta = PI/2 (z=0 if y is up)
-    // The physics simulation is done in r, theta, phi where z=r*cos(theta)
-    // The equatorial plane is theta = PI/2 (cos(theta) = 0).
-    return (prevPos.z > 0.0 && newPos.z < 0.0) || (prevPos.z < 0.0 && newPos.z > 0.0);
-}
-
-bool interceptObject(Ray ray) {
-    // PLACEHOLDER: You would implement full sphere intersection logic here
-    // For now, it always returns false unless you hit the disk
-    return false;
-}
-
-
-// -------------------------------------------------------------------
-// Main Compute Shader Entry Point
-// -------------------------------------------------------------------
-void main()
-{
-    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 image_size = imageSize(outImage);
-    
-    if (pixel_coords.x >= image_size.x || pixel_coords.y >= image_size.y)
-        return;
-
-    // 1. Calculate ray direction in world space (Adapted from Camera.h/RayTracer.h)
-    float normalizedX = (2.0 * pixel_coords.x / float(image_size.x)) - 1.0;
-    float normalizedY = 1.0 - (2.0 * pixel_coords.y / float(image_size.y));
-    
-    vec3 dir = normalize(cam.camForward + 
-                         cam.camRight * normalizedX * cam.aspect * cam.tanHalfFov + 
-                         cam.camUp * normalizedY * cam.tanHalfFov);
-                         
-    // 2. Initialize Ray (State Vector)
-    Ray ray = initRay(cam.camPos, dir);
-
-    vec4 color = vec4(0.0);
-    vec3 prevPos = camPos; // Start prevPos at camera pos for first cross-check
-    float lambda = 0.0;
-
-    bool hitBlackHole = false;
-    bool hitDisk      = false;
-    bool hitObject    = false;
-
-    // Use a fixed max number of steps
-    int steps = int(MAX_STEPS); 
-
-    // 3. RK4 Integration Loop
-    for (int i = 0; i < steps; ++i) {
-        // Check for black hole collision before integration step
-        if (intercept(ray, SagA_rs)) { hitBlackHole = true; break; }
-        
-        // Take the RK4 step
-        rk4Step(ray, D_LAMBDA);
-        lambda += D_LAMBDA;
-        
-        // Update Cartesian position for cross-checks
-        UpdateCartesian(ray);
-        vec3 newPos = vec3(ray.x, ray.y, ray.z);
-
-        // Check for intersection with the equatorial plane (disk)
-        if (crossesEquatorialPlane(prevPos, newPos)) { hitDisk = true; break; }
-        
-        // Check for intersection with background objects (placeholder)
-        // if (interceptObject(ray)) { hitObject = true; break; } 
-        
-        // Update previous position for next cross-check
-        prevPos = newPos;
-
-        // Check for escape
-        if (ray.r > ESCAPE_R) break;
-    }
-
-    // 4. Coloring Logic
-    if (hitDisk) {
-        // Simple coloring based on r/disk_r2
-        float r_norm = ray.r / disk_r2;
-        // Simple color fade from white-hot to red/orange
-        vec3 diskColor = mix(vec3(1.0, 1.0, 0.8), vec3(1.0, 0.4, 0.0), smoothstep(disk_r1, disk_r2, ray.r));
-        color = vec4(diskColor, 1.0);
-
-    } else if (hitBlackHole) {
-        color = vec4(0.0, 0.0, 0.0, 1.0); // Black Hole is Black
-    } else {
-        // Background (e.g., White Sky)
-        color = vec4(1.0, 1.0, 1.0, 1.0);
-    }
-
-    // Write final color to the output texture
-    imageStore(outImage, pixel_coords, color);
+    // Write the final color to the output texture at the correct coordinate.
+    imageStore(destTex, ivec2(pixelCoord), vec4(color, 1.0));
 }

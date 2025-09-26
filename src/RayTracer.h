@@ -39,8 +39,8 @@ struct Ray
 
 class RayTracer
 {
-	const double dLambda = 10;
-	const double maxSteps = 6000;
+	const double dLambda = 1e7;
+	const double maxSteps = 10000;
 
 public:
 	RayTracer(){}
@@ -99,6 +99,10 @@ public:
 
 		for (int i = 0; i < maxSteps; i++)
 		{
+			//escape
+			if (currentRay.r > 1e12)
+				return vec3(0, 0, 0);
+
 			double x = currentRay.cartesianPosition.x;
 			double y = currentRay.cartesianPosition.y;
 			double z = currentRay.cartesianPosition.z;
@@ -106,7 +110,7 @@ public:
 			// intercept blackhole
 			if (blackHole.Intercept(x, y, z))
 			{
-				return vec3(255, 0, 0); //return red for now (color of blackhole)
+				return vec3(255, 255, 255); //return red for now (color of blackhole)
 			}
 
 			//intercept objects
@@ -122,10 +126,6 @@ public:
 			//currentRay.cartesianPosition += (float)dLambda * currentRay.direction;
 			RK4STEP(currentRay, blackHole.R_S);
 			currentRay.UpdateCartesian();
-
-			//escape
-			if (currentRay.r > 1e30)
-				return vec3(0, 0, 0);
 		}
 
 		return vec3(0, 0, 0); // return magenta if nothing is hit (will return black soon)
@@ -162,7 +162,6 @@ private:
 		d2phi = -2.0 * dr * dphi / r
 			- 2.0 * cos(theta) / sin_theta * dtheta * dphi;
 	}
-
 
 	// Full Runge-Kutta 4th Order numerical integration
 	void RK4STEP(Ray& ray, double R_S)

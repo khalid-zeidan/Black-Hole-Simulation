@@ -23,11 +23,11 @@ public:
 		double dy = y - position.y;
 		double dz = z - position.z;
 		double distanceSquared = dx * dx + dy * dy + dz * dz;
-		return distanceSquared < (R_S * R_S);
+		return distanceSquared <= (R_S * R_S);
 	}
 
 	bool Intercept(double r) const {
-		return r < R_S;
+		return r <= R_S;
 	}
 };
 

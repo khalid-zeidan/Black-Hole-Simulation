@@ -12,6 +12,8 @@ public:
 	GLuint quadVAO, quadVBO, quadEBO;
 	GLuint texture; 
 
+	GLuint computeShaderProgram;
+
 	int   WIDTH	 = 400;
 	int   HEIGHT = 300;
 	float width  = 100000000000.0f; // Width of the viewport in meters
@@ -84,11 +86,12 @@ public:
 	}
 
 	void Clear() {
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
 	~Engine() {
+		glDeleteProgram(computeShaderProgram);
 		glDeleteVertexArrays(1, &quadVAO);
 		glDeleteBuffers(1, &quadVBO);
 		glDeleteBuffers(1, &quadEBO);

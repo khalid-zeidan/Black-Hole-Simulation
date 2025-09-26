@@ -9,6 +9,8 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 
 #define _USE_MATH_DEFINES
 #ifndef M_PI

@@ -118,7 +118,7 @@ public:
 
 	// position, radius, color
 	vector<Object> objects = {
-		{vec3(3e9f, 0.0f, 0.0f), 4e5f, vec3(255, 255, 0)},
+		{vec3(0.0f, 0.0f, 0.0f), 9.5e10f, vec3(255, 255, 0)},
 		{vec3(0.0f, 3e9f, 4e11f), 4e5f, vec3(255, 0, 0)}
 	}; 
 
