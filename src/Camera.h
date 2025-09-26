@@ -18,10 +18,10 @@ public:
 
 private:
 	float sensitivity = 0.01f;
-	double zoomSensitivity = 25e9f;
+	float zoomSensitivity = 25e9f;
 
 public:
-	double lastMouseX = 0.0f, lastMouseY = 0.0f;
+	float lastMouseX = 0.0f, lastMouseY = 0.0f;
 	bool dragging = false;
 	bool firstMouse = true;
 
