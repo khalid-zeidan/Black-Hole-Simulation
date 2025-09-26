@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include "allIncludes.h"
 #include "Ray.h"
-void getDerivatives(const Ray& ray, double eventHorizonRadius, double& d2r, double& d2theta, double& d2phi) {
+void getDerivatives(const Ray& ray, double R_S, double& d2r, double& d2theta, double& d2phi) {
 
     double r = ray.r, theta = ray.theta;
     double dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
-    double rs = eventHorizonRadius;
+    double rs = R_S;
 
     double f = 1.0 - rs / r;
 
@@ -29,15 +29,15 @@ void getDerivatives(const Ray& ray, double eventHorizonRadius, double& d2r, doub
 
 
 // Full 4th-Order Runge-Kutta Step for 6 variables (r, theta, phi, dr, dtheta, dphi)
-void RK4Step(Ray& ray, double eventHorizonRadius, double d_lambda) {
-    if (ray.r <= eventHorizonRadius) return;
+void RK4Step(Ray& ray, double R_S, double d_lambda) {
+    if (ray.r <= R_S) return;
 
     // --- K1 ---
     double k1_dr = ray.dr;
     double k1_dtheta = ray.dtheta;
     double k1_dphi = ray.dphi;
     double k1_d2r, k1_d2theta, k1_d2phi;
-    getDerivatives(ray, eventHorizonRadius, k1_d2r, k1_d2theta, k1_d2phi);
+    getDerivatives(ray, R_S, k1_d2r, k1_d2theta, k1_d2phi);
 
     // --- K2 ---
     Ray k2_ray = ray;
@@ -51,7 +51,7 @@ void RK4Step(Ray& ray, double eventHorizonRadius, double d_lambda) {
     k2_ray.dphi = ray.dphi + 0.5 * d_lambda * k1_d2phi;
 
     double k2_d2r, k2_d2theta, k2_d2phi;
-    getDerivatives(k2_ray, eventHorizonRadius, k2_d2r, k2_d2theta, k2_d2phi);
+    getDerivatives(k2_ray, R_S, k2_d2r, k2_d2theta, k2_d2phi);
 
     // --- K3 ---
     Ray k3_ray = ray;
@@ -65,7 +65,7 @@ void RK4Step(Ray& ray, double eventHorizonRadius, double d_lambda) {
     k3_ray.dphi = ray.dphi + 0.5 * d_lambda * k2_d2phi;
 
     double k3_d2r, k3_d2theta, k3_d2phi;
-    getDerivatives(k3_ray, eventHorizonRadius, k3_d2r, k3_d2theta, k3_d2phi);
+    getDerivatives(k3_ray, R_S, k3_d2r, k3_d2theta, k3_d2phi);
 
     // --- K4 ---
     Ray k4_ray = ray;
@@ -79,7 +79,7 @@ void RK4Step(Ray& ray, double eventHorizonRadius, double d_lambda) {
     k4_ray.dphi = ray.dphi + d_lambda * k3_d2phi;
 
     double k4_d2r, k4_d2theta, k4_d2phi;
-    getDerivatives(k4_ray, eventHorizonRadius, k4_d2r, k4_d2theta, k4_d2phi);
+    getDerivatives(k4_ray, R_S, k4_d2r, k4_d2theta, k4_d2phi);
 
     // --- Final update: Weighted average ---
     // Position variables (r, theta, phi)

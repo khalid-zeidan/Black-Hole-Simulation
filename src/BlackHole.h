@@ -8,10 +8,10 @@ class BlackHole
 public:
 	vec3 position;
 	double mass;
-	double eventHorizonRadius;
+	double R_S; // event horizon radius
 
 	BlackHole(vec3 pos, double m) : position(pos), mass(m) {
-		eventHorizonRadius = (2 * G * mass) / (c * c); // Event Horizon radius
+		R_S = (2 * G * mass) / (c * c); // Event Horizon radius
 	}
 
 	// checks if the point of ray intersects the black hole
@@ -23,7 +23,11 @@ public:
 		double dy = y - position.y;
 		double dz = z - position.z;
 		double distanceSquared = dx * dx + dy * dy + dz * dz;
-		return distanceSquared < (eventHorizonRadius * eventHorizonRadius);
+		return distanceSquared < (R_S * R_S);
+	}
+
+	bool Intercept(double r) {
+		return r < R_S;
 	}
 };
 
