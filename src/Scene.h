@@ -118,9 +118,10 @@ public:
 
 	// position, radius, color
 	vector<Object> objects = {
-		{vec3(4e11f, 0.0f, 0.0f), 4e10f, vec3(255, 255, 0)},
-		{vec3(0.0f, 3e9f, 4e11f), 4e10f, vec3(255, 0, 0)}
-	}; 
+	{vec3(-1e11, 5e10, 0), 1e10, vec3(255, 255, 255)},   // scaled down
+	{vec3(4e10, 0, 0), 5e9, vec3(0, 255, 0)},
+	{vec3(0.0f, 0.0f, 2e10), 1e9, vec3(255, 0, 0)}
+	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
 	{
@@ -198,7 +199,6 @@ public:
 		}
 
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
-		// Use GL_BGR for faster upload if data is stored as R,G,B (though GL_RGB is fine too)
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}

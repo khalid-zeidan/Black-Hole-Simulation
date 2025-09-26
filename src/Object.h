@@ -18,7 +18,7 @@ public:
 		double dy = y - position.y;
 		double dz = z - position.z;
 		double distanceSquared = dx * dx + dy * dy + dz * dz;
-		return distanceSquared < (radius * radius);
+		return distanceSquared <= (radius * radius);
 	}
 
 	/// when ray intersect object it will color that ray's pixel using the

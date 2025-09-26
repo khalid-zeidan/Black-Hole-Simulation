@@ -27,11 +27,11 @@ struct Ray
 	void CartesianToPolar(const vec3& cartesian) 
 	{
 		r = length(cartesian);
-		//if (r < 1e-10) { // Avoid division by zero at the origin
-		//	theta = 0.0;
-		//	phi = 0.0;
-		//	return;
-		//}
+		if (r < 1e-10) { // Avoid division by zero at the origin
+			theta = 0.0;
+			phi = 0.0;
+			return;
+		}
 		theta = acos(cartesian.z / r);
 		phi = atan(cartesian.y, cartesian.x);
 	}
@@ -39,8 +39,9 @@ struct Ray
 
 class RayTracer
 {
-	const double dLambda = 1e7;
-	const double maxSteps = 6000;
+	const double dLambda = 1e6;
+	const double maxSteps = 5000;
+	const double escapeRadius = 1e12;
 
 public:
 	RayTracer(){}
@@ -70,6 +71,8 @@ public:
 		vec3 up = normalize(cross(right, forward));
 
 		vec3 dir = normalize(forward + px * right + py * up);
+		initialRay.direction = dir;
+		initialRay.cartesianPosition = cameraPos;
 
 		vec3 relPos = camera.calculatePosition() - blackHole.position;
 		initialRay.r = length(relPos);
@@ -81,12 +84,6 @@ public:
 		initialRay.dr = sin(initialRay.theta) * cos(initialRay.phi) * dx + sin(initialRay.theta) * sin(initialRay.phi) * dy + cos(initialRay.theta) * dz;
 		initialRay.dtheta = (cos(initialRay.theta) * cos(initialRay.phi) * dx + cos(initialRay.theta) * sin(initialRay.phi) * dy - sin(initialRay.theta) * dz) / initialRay.r;
 		initialRay.dphi = (-sin(initialRay.phi) * dx + cos(initialRay.phi) * dy) / (initialRay.r * sin(initialRay.theta));
-
-		double scaleFactor = blackHole.R_S;
-
-		initialRay.dr *= scaleFactor;
-		initialRay.dtheta *= scaleFactor;
-		initialRay.dphi *= scaleFactor;
 
 		initialRay.L = initialRay.r * initialRay.r * sin(initialRay.theta) * initialRay.dphi;
 
@@ -101,52 +98,50 @@ public:
 	vec3 TraceAndGetColor(Ray& initialRay, const BlackHole& blackHole, const vector<Object>& Objects) 
 	{
 		Ray currentRay = initialRay;
-		vec3 pos;
 
 		for (int i = 0; i < maxSteps; i++)
 		{
-			// Instead of integrating geodesics:
-			currentRay.r += currentRay.dr * dLambda;
-			currentRay.theta += currentRay.dtheta * dLambda;
-			currentRay.phi += currentRay.dphi * dLambda;
+			//LinearSTEP(currentRay);
 
-			pos.x = currentRay.r * sin(currentRay.theta) * cos(currentRay.phi);
-			pos.y = currentRay.r * sin(currentRay.theta) * sin(currentRay.phi);
-			pos.z = currentRay.r * cos(currentRay.theta);
+			RK4STEP(currentRay, blackHole.R_S);
 
 			//escape
-			if (currentRay.r > 1e17)
+			if (currentRay.r > escapeRadius)
 				return vec3(0, 0, 0);
 
 			double x = currentRay.cartesianPosition.x;
 			double y = currentRay.cartesianPosition.y;
 			double z = currentRay.cartesianPosition.z;
 
-			// intercept blackhole
-			if (blackHole.Intercept(pos.x, pos.y, pos.z))
+			//intercept blackhole
+			if (blackHole.Intercept(currentRay.r))
 			{
-				return vec3(255, 0, 0); //return red for now (color of blackhole)
+				return vec3(255, 255, 255); 
 			}
 
 			//intercept objects
 			for (const auto& object: Objects)
 			{
-				if (object.Intercept(pos.x, pos.y, pos.z))
+				if (object.Intercept(x, y, z))
 				{
 					return object.color; //return object's color
 				}
 			}
-
-			//linear rays no gravity lensing
-			//currentRay.cartesianPosition += (float)dLambda * currentRay.direction;
-			//RK4STEP(currentRay, blackHole.R_S);
-			//currentRay.UpdateCartesian();
 		}
 
-		return vec3(0, 0, 0); // return magenta if nothing is hit (will return black soon)
+		return vec3(0, 0, 0);
 	}
 
 private:
+	void LinearSTEP(Ray& ray) 
+	{
+		ray.cartesianPosition += ray.direction * (float)dLambda;
+
+		ray.r = length(ray.cartesianPosition);
+		ray.theta = acos(ray.cartesianPosition.z / ray.r);
+		ray.phi = atan2(ray.cartesianPosition.y, ray.cartesianPosition.x);
+	}
+
 	void GetDerivatives(const Ray& ray, double R_S, double& d2r, double& d2theta, double& d2phi) {
 
 		double r = ray.r, theta = ray.theta;
@@ -178,7 +173,6 @@ private:
 			- 2.0 * cos(theta) / sin_theta * dtheta * dphi;
 	}
 
-	// Full Runge-Kutta 4th Order numerical integration
 	void RK4STEP(Ray& ray, double R_S)
 	{
 		// --- K1 ---
