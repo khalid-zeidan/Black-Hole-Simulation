@@ -4,8 +4,7 @@
 #include "Camera.h"
 #include "Object.h"
 #include "Engine.h"
-#include "Ray.h"
-#include "Physics.h"
+#include "RayTracer.h"
 
 using namespace std;
 using namespace glm;
@@ -104,6 +103,8 @@ class Scene
 {
 public:
 	Engine engine;
+	RayTracer raytracer;
+
 	BlackHole sagittariusA;
 	Camera camera;
 
@@ -128,16 +129,21 @@ public:
 
 		quadShaderProgramID = CompileShader(QUAD_VERTEX_SHADER_SOURCE, QUAD_FRAGMENT_SHADER_SOURCE);
 
-		pixels.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
+		InitScreenTexture();
     }
 
 	void Update()
 	{
 		for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
 		{
+			Ray ray;
+		}
+
+		for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
+		{
 			pixels[i * 3 + 0] = 255;// R
-			pixels[i * 3 + 1] = 0;	// G
-			pixels[i * 3 + 2] = 0;	// B
+			pixels[i * 3 + 1] = 255;	// G
+			pixels[i * 3 + 2] = 255;	// B
 		}
 
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
@@ -147,7 +153,21 @@ public:
 	}
 
 private:
-	//create grid
+	void InitScreenTexture() 
+	{
+		pixels.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
+
+		// Bind and allocate memory for the texture
+		glBindTexture(GL_TEXTURE_2D, engine.texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, engine.WIDTH, engine.HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+		// Set texture parameters
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
 	void InitGrid() {
 		// Use a grid size that is manageable for the current camera zoom
 		float size = 1e12f;

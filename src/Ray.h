@@ -54,8 +54,4 @@ public:
 		y = r * sin(theta) * sin(phi);
 		z = r * cos(theta);
 	}
-
-	bool intercept() {
-		return r <= eventHorizionRadius;
-	}
 };

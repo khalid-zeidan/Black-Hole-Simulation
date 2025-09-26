@@ -9,14 +9,12 @@ class Engine
 public:
 	GLFWwindow* window;
 
-	GLuint quadVAO;
+	GLuint quadVAO, quadVBO, quadEBO;
 	GLuint texture; 
 
-	GLuint quadVBO, quadEBO;
-
-	int WIDTH = 800;
-	int HEIGHT = 600;
-	float width = 100000000000.0f; // Width of the viewport in meters
+	int   WIDTH	 = 800;
+	int   HEIGHT = 600;
+	float width  = 100000000000.0f; // Width of the viewport in meters
 	float height = 75000000000.0f; // Height of the viewport in meters
 
 	Engine() 
@@ -85,28 +83,8 @@ public:
 		glEnableVertexAttribArray(1);
 	}
 
-	void UpdateTextureFormatForCompute()
-	{
-		// Re-create the texture with GL_RGBA8 to allow it to be bound as a compute image
-		if (texture != 0) glDeleteTextures(1, &texture);
-
-		glGenTextures(1, &texture);
-		glBindTexture(GL_TEXTURE_2D, texture);
-
-		// Use GL_RGBA8 for the internal format, matching the GLSL layout(rgba8, binding=0)
-		// Set the output format to GL_RGBA, as the compute shader writes 4 components (RGBA)
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-		// Standard texture parameters
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		glBindTexture(GL_TEXTURE_2D, 0);
-	}
-
 	void Clear() {
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
@@ -115,6 +93,7 @@ public:
 		glDeleteBuffers(1, &quadVBO);
 		glDeleteBuffers(1, &quadEBO);
 		glDeleteTextures(1, &texture);
+		glfwTerminate();
 	}
 };
 

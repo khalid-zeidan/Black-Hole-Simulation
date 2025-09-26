@@ -26,7 +26,7 @@ public:
 		return distanceSquared < (R_S * R_S);
 	}
 
-	bool Intercept(double r) {
+	bool Intercept(double r) const {
 		return r < R_S;
 	}
 };

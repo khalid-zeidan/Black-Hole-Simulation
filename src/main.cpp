@@ -21,7 +21,8 @@ int main()
 		glfwPollEvents();
 	}
 
-	glfwTerminate();
+	//terminates the program
+	eng.~Engine();
 	return 0;
 }
 
