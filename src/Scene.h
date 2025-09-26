@@ -204,16 +204,16 @@ public:
 	}
 
 private:
-	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, double radius, vec3& hitPoint) {
+	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, float radius, vec3& hitPoint) {
 		vec3 oc = origin - center;
-		double a = dot(dir, dir);
-		double b = 2.0 * dot(oc, dir);
-		double c = dot(oc, oc) - radius * radius;
-
-		double disc = b * b - 4.0 * a * c;
+		float a = dot(dir, dir);
+		float b = 2.0 * dot(oc, dir);
+		float c = dot(oc, oc) - radius * radius;
+		
+		float disc = b * b - 4.0 * a * c;
 		if (disc < 0.0) return false;
 
-		double t = (-b - sqrt(disc)) / (2.0 * a);
+		float t = (-b - sqrt(disc)) / (2.0 * a);
 		if (t < 0.0) return false;
 
 		hitPoint = origin + (float)t * dir;
@@ -340,7 +340,7 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods)
 }
 
 // checks mouse move positions
-void mouseMoveCallBack(GLFWwindow* window, double xpos, double ypos)
+void mouseMoveCallBack(GLFWwindow* window, float xpos, float ypos)
 {
 	if (scene.camera.firstMouse) 
 	{
@@ -362,7 +362,7 @@ void mouseMoveCallBack(GLFWwindow* window, double xpos, double ypos)
 }
 
 //checks mouse scroll 
-void scrollCallBack(GLFWwindow* window, double xoffset, double yoffset)
+void scrollCallBack(GLFWwindow* window, float xoffset, float yoffset)
 {
 	scene.camera.Zoom(yoffset);
 }

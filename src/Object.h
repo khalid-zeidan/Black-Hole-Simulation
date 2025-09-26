@@ -12,12 +12,12 @@ struct Object
 public:
 	vec3 color; // rgba
 
-	bool Intercept(double x, double y, double z) const
+	bool Intercept(float x, float y, float z) const
 	{
-		double dx = x - position.x;
-		double dy = y - position.y;
-		double dz = z - position.z;
-		double distanceSquared = dx * dx + dy * dy + dz * dz;
+		float dx = x - position.x;
+		float dy = y - position.y;
+		float dz = z - position.z;
+		float distanceSquared = dx * dx + dy * dy + dz * dz;
 		return distanceSquared <= (radius * radius);
 	}
 

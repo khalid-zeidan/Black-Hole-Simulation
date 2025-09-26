@@ -11,11 +11,11 @@ struct Ray
 {
 	vec3 cartesianPosition, direction;
 
-	double r, phi, theta;    //position in spherical coord
-	double dr, dphi, dtheta; //velocity based on affine parameter (dlambda)
+	float r, phi, theta;    //position in spherical coord
+	float dr, dphi, dtheta; //velocity based on affine parameter (dlambda)
 
-	double E; // Energy
-	double L; // Angular Momentum
+	float E; // Energy
+	float L; // Angular Momentum
 
 	void UpdateCartesian()
 	{
@@ -39,9 +39,9 @@ struct Ray
 
 class RayTracer
 {
-	const double dLambda = 1e6;
-	const double maxSteps = 5000;
-	const double escapeRadius = 1e12;
+	const float dLambda = 1e6;
+	const float maxSteps = 5000;
+	const float escapeRadius = 1e12;
 
 public:
 	RayTracer(){}
@@ -109,9 +109,9 @@ public:
 			if (currentRay.r > escapeRadius)
 				return vec3(0, 0, 0);
 
-			double x = currentRay.cartesianPosition.x;
-			double y = currentRay.cartesianPosition.y;
-			double z = currentRay.cartesianPosition.z;
+			float x = currentRay.cartesianPosition.x;
+			float y = currentRay.cartesianPosition.y;
+			float z = currentRay.cartesianPosition.z;
 
 			//intercept blackhole
 			if (blackHole.Intercept(currentRay.r))
@@ -142,14 +142,14 @@ private:
 		ray.phi = atan2(ray.cartesianPosition.y, ray.cartesianPosition.x);
 	}
 
-	void GetDerivatives(const Ray& ray, double R_S, double& d2r, double& d2theta, double& d2phi) {
+	void GetDerivatives(const Ray& ray, float R_S, float& d2r, float& d2theta, float& d2phi) {
 
-		double r = ray.r, theta = ray.theta;
-		double dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
-		double rs = R_S;
+		float r = ray.r, theta = ray.theta;
+		float dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
+		float rs = R_S;
 
-		double f = 1.0 - rs / r;
-		double dt_dL = ray.E / f;
+		float f = 1.0 - rs / r;
+		float dt_dL = ray.E / f;
 
 		// Avoid division by zero when approaching the event horizon
 		if (f == 0.0) {
@@ -173,11 +173,11 @@ private:
 			- 2.0 * cos(theta) / sin_theta * dtheta * dphi;
 	}
 
-	void RK4STEP(Ray& ray, double R_S)
+	void RK4STEP(Ray& ray, float R_S)
 	{
 		// --- K1 ---
 		Ray k1_ray = ray;
-		double k1_d2r, k1_d2theta, k1_d2phi;
+		float k1_d2r, k1_d2theta, k1_d2phi;
 		GetDerivatives(k1_ray, R_S, k1_d2r, k1_d2theta, k1_d2phi);
 
 		// --- K2 ---
@@ -191,7 +191,7 @@ private:
 		k2_ray.dtheta = ray.dtheta + 0.5 * dLambda * k1_d2theta;
 		k2_ray.dphi = ray.dphi + 0.5 * dLambda * k1_d2phi;
 
-		double k2_d2r, k2_d2theta, k2_d2phi;
+		float k2_d2r, k2_d2theta, k2_d2phi;
 		GetDerivatives(k2_ray, R_S, k2_d2r, k2_d2theta, k2_d2phi);
 
 		// --- K3 ---
@@ -205,7 +205,7 @@ private:
 		k3_ray.dtheta = ray.dtheta + 0.5 * dLambda * k2_d2theta;
 		k3_ray.dphi = ray.dphi + 0.5 * dLambda * k2_d2phi;
 
-		double k3_d2r, k3_d2theta, k3_d2phi;
+		float k3_d2r, k3_d2theta, k3_d2phi;
 		GetDerivatives(k3_ray, R_S, k3_d2r, k3_d2theta, k3_d2phi);
 
 		// --- K4 ---
@@ -219,7 +219,7 @@ private:
 		k4_ray.dtheta = ray.dtheta + dLambda * k3_d2theta;
 		k4_ray.dphi = ray.dphi + dLambda * k3_d2phi;
 
-		double k4_d2r, k4_d2theta, k4_d2phi;
+		float k4_d2r, k4_d2theta, k4_d2phi;
 		GetDerivatives(k4_ray, R_S, k4_d2r, k4_d2theta, k4_d2phi);
 
 		// --- Final update
