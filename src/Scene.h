@@ -118,8 +118,8 @@ public:
 
 	// position, radius, color
 	vector<Object> objects = {
-		{vec3(0.0f, 0.0f, 0.0f), 9.5e10f, vec3(255, 255, 0)},
-		{vec3(0.0f, 3e9f, 4e11f), 4e5f, vec3(255, 0, 0)}
+		{vec3(4e11f, 0.0f, 0.0f), 4e10f, vec3(255, 255, 0)},
+		{vec3(0.0f, 3e9f, 4e11f), 4e10f, vec3(255, 0, 0)}
 	}; 
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -138,6 +138,53 @@ public:
 		{
 			for (int y = 0; y < engine.HEIGHT; y++)
 			{
+				#pragma region camera-ray projection test
+				/*// Build ray (we don’t actually use spherical components here)
+				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
+
+				// --- Projection math (debug view) ---
+				float ndcX = ((x + 0.5f) / (float)engine.WIDTH) * 2.0f - 1.0f;
+				float ndcY = ((y + 0.5f) / (float)engine.HEIGHT) * 2.0f - 1.0f;
+
+				float aspect = (float)engine.WIDTH / (float)engine.HEIGHT;
+				float tanHalfFov = tanf(0.5f * radians(60.0f));
+
+				float px = ndcX * aspect * tanHalfFov;
+				float py = -ndcY * tanHalfFov;
+
+				vec3 forward = normalize(camera.target - camera.calculatePosition());
+				vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
+				if (fabs(dot(forward, worldUp)) > 0.999f) {
+					worldUp = vec3(0.0f, 0.0f, 1.0f);
+				}
+				vec3 right = normalize(cross(forward, worldUp));
+				vec3 up = normalize(cross(right, forward));
+				vec3 dir = normalize(forward + px * right + py * up);
+
+				// --- Sphere intersection test ---
+				vec3 hit;
+				uint8_t r, g, b;
+				if (intersectSphere(camera.calculatePosition(), dir, sagittariusA.position, sagittariusA.R_S, hit)) {
+					float u = 0.5f + atan2(hit.y, hit.x) / (2.0f * M_PI);
+					float v = 0.5f - asin(hit.z) / M_PI;
+
+					int gridU = (int)(u * 10) % 2;
+					int gridV = (int)(v * 10) % 2;
+					bool checker = (gridU ^ gridV);
+
+					if (checker) { r = 255; g = 255; b = 255; }
+					else { r = 0;   g = 0;   b = 0; }
+				}
+				else {
+					r = g = b = 50; // background gray
+				}
+
+				int index = (y * engine.WIDTH + x) * 3;
+				pixels[index + 0] = r;
+				pixels[index + 1] = g;
+				pixels[index + 2] = b;*/
+				#pragma endregion
+
 				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
 
 				vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
@@ -150,13 +197,6 @@ public:
 			}
 		}
 
-		//for (size_t i = 0; i < engine.WIDTH * engine.HEIGHT / 2; i++)
-		//{
-		//	pixels[i * 3 + 0] = 255;	// R
-		//	pixels[i * 3 + 1] = 255;	// G
-		//	pixels[i * 3 + 2] = 255;	// B
-		//}
-
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
 		// Use GL_BGR for faster upload if data is stored as R,G,B (though GL_RGB is fine too)
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
@@ -164,6 +204,22 @@ public:
 	}
 
 private:
+	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, double radius, vec3& hitPoint) {
+		vec3 oc = origin - center;
+		double a = dot(dir, dir);
+		double b = 2.0 * dot(oc, dir);
+		double c = dot(oc, oc) - radius * radius;
+
+		double disc = b * b - 4.0 * a * c;
+		if (disc < 0.0) return false;
+
+		double t = (-b - sqrt(disc)) / (2.0 * a);
+		if (t < 0.0) return false;
+
+		hitPoint = origin + (float)t * dir;
+		return true;
+	}
+
 	void InitScreenTexture() 
 	{
 		pixels.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel

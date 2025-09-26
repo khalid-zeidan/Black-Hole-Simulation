@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "allIncludes.h"
 #include "Object.h"
 #include "BlackHole.h"
@@ -40,52 +40,57 @@ struct Ray
 class RayTracer
 {
 	const double dLambda = 1e7;
-	const double maxSteps = 10000;
+	const double maxSteps = 6000;
 
 public:
 	RayTracer(){}
 
-	static Ray GetInitialRay(const Camera& camera, int x, int y, int WIDTH, int HEIGHT, const BlackHole& blackHole) 
+	static Ray GetInitialRay(const Camera& camera, int pixelX, int pixelY, int WIDTH, int HEIGHT, const BlackHole& blackHole)
 	{
 		Ray initialRay;
+		vec3 cameraPos = camera.calculatePosition();
 
-		double normalizedX = (2.0f * x / WIDTH) - 1.0f;
-		double normalizedY = 1 - (2.0f * y / HEIGHT);
+		float ndcX = ((pixelX + 0.5f) / (float)WIDTH) * 2.0f - 1.0f;
+		float ndcY = ((pixelY + 0.5f) / (float)HEIGHT) * 2.0f - 1.0f;
 
-		vec3 fwd = normalize(camera.target - camera.calculatePosition());
-		vec3 up = vec3(0, 1, 0); // y axis is up, so disk is in x-z plane
-		vec3 right = normalize(cross(fwd, up));
-		up = cross(right, fwd);
+		float aspect = (float)WIDTH / (float)HEIGHT;
+		float tanHalfFov = tanf(0.5f * radians(60.0f));
 
-		vec3 rayDir = normalize(fwd +
-								right * (float)normalizedX +
-								up	  * (float)normalizedY);
+		float px = ndcX * aspect * tanHalfFov;
+		float py = -ndcY * tanHalfFov; // flip Y
 
-		initialRay.cartesianPosition = camera.calculatePosition();
-		initialRay.CartesianToPolar(initialRay.cartesianPosition);
-		initialRay.direction = rayDir;
+		vec3 forward = normalize(camera.target - cameraPos);
+		vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
 
-		// Convert cartesian velocity to spherical velocity
-		float dx = rayDir.x, dy = rayDir.y, dz = rayDir.z;
+		// Handle edge case: forward nearly parallel to worldUp
+		if (fabs(dot(forward, worldUp)) > 0.999f)
+			worldUp = vec3(0.0f, 0.0f, 1.0f);
+
+		vec3 right = normalize(cross(forward, worldUp));
+		vec3 up = normalize(cross(right, forward));
+
+		vec3 dir = normalize(forward + px * right + py * up);
+
+		vec3 relPos = camera.calculatePosition() - blackHole.position;
+		initialRay.r = length(relPos);
+		initialRay.theta = acos(relPos.z / initialRay.r);
+		initialRay.phi = atan2(relPos.y, relPos.x);
+
+		float dx = dir.x, dy = dir.y, dz = dir.z;
 
 		initialRay.dr = sin(initialRay.theta) * cos(initialRay.phi) * dx + sin(initialRay.theta) * sin(initialRay.phi) * dy + cos(initialRay.theta) * dz;
 		initialRay.dtheta = (cos(initialRay.theta) * cos(initialRay.phi) * dx + cos(initialRay.theta) * sin(initialRay.phi) * dy - sin(initialRay.theta) * dz) / initialRay.r;
 		initialRay.dphi = (-sin(initialRay.phi) * dx + cos(initialRay.phi) * dy) / (initialRay.r * sin(initialRay.theta));
 
-		// --- VITAL FIX: SCALE UP MOMENTUM COMPONENTS ---
-		// The components must be scaled by the characteristic length (R_S) to give the ray 
-		// enough energy/momentum to curve significantly.
 		double scaleFactor = blackHole.R_S;
 
 		initialRay.dr *= scaleFactor;
 		initialRay.dtheta *= scaleFactor;
 		initialRay.dphi *= scaleFactor;
-		// ---------------------------------------------
 
 		initialRay.L = initialRay.r * initialRay.r * sin(initialRay.theta) * initialRay.dphi;
-		float f = 1.0 - blackHole.R_S / initialRay.r;
 
-		// This now calculates the correct dt/dlambda from the scaled components
+		float f = 1.0 - blackHole.R_S / initialRay.r;
 		float dt_dL = sqrt((initialRay.dr * initialRay.dr) / f + initialRay.r * initialRay.r * (initialRay.dtheta * initialRay.dtheta + sin(initialRay.theta) * sin(initialRay.theta) * initialRay.dphi * initialRay.dphi));
 
 		initialRay.E = f * dt_dL;
@@ -93,14 +98,24 @@ public:
 		return initialRay;
 	}
 
-	vec3 TraceAndGetColor(Ray& initialRay,const BlackHole& blackHole, const vector<Object>& Objects) 
+	vec3 TraceAndGetColor(Ray& initialRay, const BlackHole& blackHole, const vector<Object>& Objects) 
 	{
 		Ray currentRay = initialRay;
+		vec3 pos;
 
 		for (int i = 0; i < maxSteps; i++)
 		{
+			// Instead of integrating geodesics:
+			currentRay.r += currentRay.dr * dLambda;
+			currentRay.theta += currentRay.dtheta * dLambda;
+			currentRay.phi += currentRay.dphi * dLambda;
+
+			pos.x = currentRay.r * sin(currentRay.theta) * cos(currentRay.phi);
+			pos.y = currentRay.r * sin(currentRay.theta) * sin(currentRay.phi);
+			pos.z = currentRay.r * cos(currentRay.theta);
+
 			//escape
-			if (currentRay.r > 1e12)
+			if (currentRay.r > 1e17)
 				return vec3(0, 0, 0);
 
 			double x = currentRay.cartesianPosition.x;
@@ -108,15 +123,15 @@ public:
 			double z = currentRay.cartesianPosition.z;
 
 			// intercept blackhole
-			if (blackHole.Intercept(x, y, z))
+			if (blackHole.Intercept(pos.x, pos.y, pos.z))
 			{
-				return vec3(255, 255, 255); //return red for now (color of blackhole)
+				return vec3(255, 0, 0); //return red for now (color of blackhole)
 			}
 
 			//intercept objects
 			for (const auto& object: Objects)
 			{
-				if (object.Intercept(x, y, z))
+				if (object.Intercept(pos.x, pos.y, pos.z))
 				{
 					return object.color; //return object's color
 				}
@@ -124,8 +139,8 @@ public:
 
 			//linear rays no gravity lensing
 			//currentRay.cartesianPosition += (float)dLambda * currentRay.direction;
-			RK4STEP(currentRay, blackHole.R_S);
-			currentRay.UpdateCartesian();
+			//RK4STEP(currentRay, blackHole.R_S);
+			//currentRay.UpdateCartesian();
 		}
 
 		return vec3(0, 0, 0); // return magenta if nothing is hit (will return black soon)

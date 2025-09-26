@@ -8,8 +8,8 @@ struct Object
 {
 	vec3 position;
 	float radius;
-public:
 
+public:
 	vec3 color; // rgba
 
 	bool Intercept(double x, double y, double z) const

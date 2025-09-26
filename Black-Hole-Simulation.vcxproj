@@ -146,9 +146,6 @@
     <ClInclude Include="src\BlackHole.h" />
     <ClInclude Include="src\Engine.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="src\Geodesic.comp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
