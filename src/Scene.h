@@ -340,7 +340,7 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods)
 }
 
 // checks mouse move positions
-void mouseMoveCallBack(GLFWwindow* window, float xpos, float ypos)
+void mouseMoveCallBack(GLFWwindow* window, double xpos, double ypos)
 {
 	if (scene.camera.firstMouse) 
 	{
@@ -362,7 +362,7 @@ void mouseMoveCallBack(GLFWwindow* window, float xpos, float ypos)
 }
 
 //checks mouse scroll 
-void scrollCallBack(GLFWwindow* window, float xoffset, float yoffset)
+void scrollCallBack(GLFWwindow* window, double xoffset, double yoffset)
 {
 	scene.camera.Zoom(yoffset);
 }
