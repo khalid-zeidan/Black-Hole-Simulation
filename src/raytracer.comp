@@ -1,221 +1,317 @@
 #version 430 core
-// Define work group size (e.g., 16x16 pixels per group)
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
-// Output image texture (image unit 0)
-// Write-only, high precision floating point format
 layout(rgba32f, binding = 0) uniform image2D outImage;
 
-// Uniforms for Black Hole and Camera data
+// constants
 const float c = 299792458.0;
 const float G = 6.67430e-11;
 const float PI = 3.141592653589793;
 
-uniform float u_R_S; // Schwarzschild radius (R_S = 2GM/c^2)
-uniform vec3 u_cameraPos;
-uniform vec3 u_cameraRight;
-uniform vec3 u_cameraUp;
-uniform vec3 u_cameraForward;
-uniform float u_viewPlaneW;
-uniform float u_viewPlaneH;
-uniform int u_maxSteps;
+// raytracer uniforms
 uniform float u_dLambda;
+uniform int u_maxSteps;
 uniform float u_escapeRadius;
 
-// Ray structure for the RK4 steps
-struct RayState {
-    float r, theta, phi;    // position in spherical coord
-    float dr, dtheta, dphi; // velocity based on affine parameter (dlambda)
-    float E;                // Conserved Energy
-    float L;                // Conserved Angular Momentum (L_phi)
+// blackhole uniforms
+uniform float u_RS;
+
+// camera uniforms
+uniform vec3 u_cameraPos;
+uniform vec3 u_cameraTarget;
+
+uniform float u_ScreenResolutionX;
+uniform float u_ScreenResolutionY;
+
+struct Object {
+    vec3 position;
+    vec3 color;
+    float radius;
 };
 
+bool InterceptObject(vec3 worldRayPos, Object object) {
+    float dx = worldRayPos.x - object.position.x;
+    float dy = worldRayPos.y - object.position.y;
+    float dz = worldRayPos.z - object.position.z;
 
-// ----------------------------------------------------------------------
-// Geodesic Equations (Second Derivatives: d^2r/d\lambda^2, d^2\theta/d\lambda^2, d^2\phi/d\lambda^2)
-// ----------------------------------------------------------------------
-void GetDerivatives(
-    RayState ray, float R_S,
-    out float d2r, out float d2theta, out float d2phi)
-{
-    float A = 1.0 - R_S / ray.r;
-    float A_prime = R_S / (ray.r * ray.r);
-
-    // Calculate dt/d\lambda from the E conservation: dt/d\lambda = E / (c^2 * A)
-    float dtdlambda = ray.E / (c * c * A);
-
-    // Second derivative of r: d^2r/d\lambda^2
-    d2r = 0.5 * A_prime * dtdlambda * dtdlambda * c * c;
-    d2r -= 0.5 * A_prime * (1.0 / (A * A)) * ray.dr * ray.dr;
-    d2r += ray.r * ray.dtheta * ray.dtheta;
-    d2r += ray.r * sin(ray.theta) * sin(ray.theta) * ray.dphi * ray.dphi;
-
-    // Second derivative of theta: d^2\theta/d\lambda^2
-    d2theta = -(2.0 / ray.r) * ray.dr * ray.dtheta;
-    d2theta += cos(ray.theta) * sin(ray.theta) * ray.dphi * ray.dphi;
-
-    // Second derivative of phi: d^2\phi/d\lambda^2
-    d2phi = -(2.0 / ray.r) * ray.dr * ray.dphi;
-    d2phi -= 2.0 * cos(ray.theta) / sin(ray.theta) * ray.dtheta * ray.dphi;
+    float distanceSquared = dx * dx + dy * dy + dz * dz;
+    return distanceSquared <= (object.radius * object.radius);
 }
 
+layout(std430, binding = 1) buffer ObjectBuffer {
+    Object u_objects[]; // Flexible size array of Objects
+};
 
-// ----------------------------------------------------------------------
-// RK4 Integration Step (Runge-Kutta 4th Order)
-// ----------------------------------------------------------------------
-void RK4Step(inout RayState ray, float R_S, float dLambda)
+uniform int u_numObjects;
+
+struct Ray {
+    vec3 cartesianPos;
+    vec3 direction;
+
+    float r, theta, phi;    
+    float dr, dtheta, dphi; 
+    float E;                
+    float L;                
+};
+
+// RAY HELPER FUNCTIONS
+
+void SphericalToCartesian(inout Ray ray) 
 {
-    // K1 (Step 1)
-    RayState k1_ray = ray;
-    float k1_d2r, k1_d2theta, k1_d2phi;
-    GetDerivatives(k1_ray, R_S, k1_d2r, k1_d2theta, k1_d2phi);
-
-    // K2 (Step 2: Half step)
-    RayState k2_ray = ray;
-    k2_ray.r += 0.5 * dLambda * k1_ray.dr;
-    k2_ray.theta += 0.5 * dLambda * k1_ray.dtheta;
-    k2_ray.phi += 0.5 * dLambda * k1_ray.dphi;
-
-    float k2_dr = ray.dr + 0.5 * dLambda * k1_d2r;
-    float k2_dtheta = ray.dtheta + 0.5 * dLambda * k1_d2theta;
-    float k2_dphi = ray.dphi + 0.5 * dLambda * k1_d2phi;
-    k2_ray.dr = k2_dr; k2_ray.dtheta = k2_dtheta; k2_ray.dphi = k2_dphi;
-
-    float k2_d2r, k2_d2theta, k2_d2phi;
-    GetDerivatives(k2_ray, R_S, k2_d2r, k2_d2theta, k2_d2phi);
-
-    // K3 (Step 3: Half step)
-    RayState k3_ray = ray;
-    k3_ray.r += 0.5 * dLambda * k2_dr;
-    k3_ray.theta += 0.5 * dLambda * k2_dtheta;
-    k3_ray.phi += 0.5 * dLambda * k2_dphi;
-
-    float k3_dr = ray.dr + 0.5 * dLambda * k2_d2r;
-    float k3_dtheta = ray.dtheta + 0.5 * dLambda * k2_d2theta;
-    float k3_dphi = ray.dphi + 0.5 * dLambda * k2_d2phi;
-    k3_ray.dr = k3_dr; k3_ray.dtheta = k3_dtheta; k3_ray.dphi = k3_dphi;
-
-    float k3_d2r, k3_d2theta, k3_d2phi;
-    GetDerivatives(k3_ray, R_S, k3_d2r, k3_d2theta, k3_d2phi);
-
-    // K4 (Step 4: Full step)
-    RayState k4_ray = ray;
-    k4_ray.r += dLambda * k3_dr;
-    k4_ray.theta += dLambda * k3_dtheta;
-    k4_ray.phi += dLambda * k3_dphi;
-
-    float k4_dr = ray.dr + dLambda * k3_d2r;
-    float k4_dtheta = ray.dtheta + dLambda * k3_d2theta;
-    float k4_dphi = ray.dphi + dLambda * k3_d2phi;
-    k4_ray.dr = k4_dr; k4_ray.dtheta = k4_dtheta; k4_ray.dphi = k4_dphi;
-
-    float k4_d2r, k4_d2theta, k4_d2phi;
-    GetDerivatives(k4_ray, R_S, k4_d2r, k4_d2theta, k4_d2phi);
-
-    // Combine results (Weighted average of the K-values)
-    ray.r += (dLambda / 6.0) * (k1_ray.dr + 2.0 * k2_dr + 2.0 * k3_dr + k4_dr);
-    ray.theta += (dLambda / 6.0) * (k1_ray.dtheta + 2.0 * k2_dtheta + 2.0 * k3_dtheta + k4_dtheta);
-    ray.phi += (dLambda / 6.0) * (k1_ray.dphi + 2.0 * k2_dphi + 2.0 * k3_dphi + k4_dphi);
-
-    ray.dr += (dLambda / 6.0) * (k1_d2r + 2.0 * k2_d2r + 2.0 * k3_d2r + k4_d2r);
-    ray.dtheta += (dLambda / 6.0) * (k1_d2theta + 2.0 * k2_d2theta + 2.0 * k3_d2theta + k4_d2theta);
-    ray.dphi += (dLambda / 6.0) * (k1_d2phi + 2.0 * k2_d2phi + 2.0 * k3_d2phi + k4_d2phi);
+    ray.cartesianPos.x = ray.r * sin(ray.theta) * cos(ray.phi);
+    ray.cartesianPos.y = ray.r * sin(ray.theta) * sin(ray.phi);
+    ray.cartesianPos.z = ray.r * cos(ray.theta);
 }
 
-// ----------------------------------------------------------------------
-// Ray Initialization: Calculates E, L, and spherical velocities
-// ----------------------------------------------------------------------
-RayState InitializeRay(vec3 cameraPos, vec3 rayDir, float R_S)
+void CartesianToSpherical(inout Ray ray) 
 {
-    RayState ray;
-
-    // 1. Position to Spherical (r, theta, phi)
-    vec3 cartesianPos = cameraPos;
-    ray.r = length(cartesianPos);
-    ray.theta = (ray.r < 1e-10) ? 0.0 : acos(cartesianPos.z / ray.r);
-    ray.phi = (ray.r < 1e-10) ? 0.0 : atan(cartesianPos.y, cartesianPos.x);
-
-    // 2. Velocity to Spherical (\dot{r}, \dot{\theta}, \dot{\phi})
-    float sin_theta = sin(ray.theta);
-    float cos_theta = cos(ray.theta);
-    float sin_phi = sin(ray.phi);
-    float cos_phi = cos(ray.phi);
-
-    vec3 e_r = normalize(cartesianPos);
-    vec3 e_theta = vec3(cos_theta * cos_phi, cos_theta * sin_phi, -sin_theta);
-    vec3 e_phi = vec3(-sin_phi, cos_phi, 0.0f);
-
-    ray.dr = dot(rayDir, e_r);
-    ray.dtheta = dot(rayDir, e_theta) / ray.r;
-    ray.dphi = dot(rayDir, e_phi) / (ray.r * sin_theta);
-
-    // 3. Conserved Quantities (E and L)
-    float A = 1.0 - R_S / ray.r;
-    float A_inv = 1.0 / A;
-
-    float r_sq_dtheta_sq = ray.r * ray.r * ray.dtheta * ray.dtheta;
-    float r_sq_sin_sq_dphi_sq = ray.r * ray.r * sin_theta * sin_theta * ray.dphi * ray.dphi;
-
-    // dtdlambda_squared (from null geodesic condition)
-    float dtdlambda_squared = (1.0 / (c * c * A)) * (A_inv * ray.dr * ray.dr + r_sq_dtheta_sq + r_sq_sin_sq_dphi_sq);
-    float dtdlambda = sqrt(dtdlambda_squared);
-
-    ray.E = c * c * A * dtdlambda;
-    ray.L = ray.r * ray.r * sin_theta * sin_theta * ray.dphi;
-
-    return ray;
+    ray.r = length(ray.cartesianPos);
+    if (ray.r < 1e-10) { // Avoid division by zero at the origin
+        ray.theta = 0.0;
+        ray.phi = 0.0;
+        return;
+    }
+    ray.theta = acos(ray.cartesianPos.z / ray.r);
+    ray.phi = atan(ray.cartesianPos.y, ray.cartesianPos.x);
 }
 
+// RK4 AND CARTESIAN EQUATIONS
 
-// ----------------------------------------------------------------------
-// Main Compute Shader Kernel: One thread per pixel
-// ----------------------------------------------------------------------
-void main()
+Ray GetInitialRay(vec2 pixelPos) 
 {
-    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 imageSize = imageSize(outImage);
+    Ray initialRay;
 
-    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) return;
+    // Normalized Device Coords
+    float ndcX = ((pixelPos.x + 0.5f) / u_ScreenResolutionX) * 2.0f - 1.0f;
+    float ndcY = ((pixelPos.y + 0.5f) / u_ScreenResolutionY) * 2.0f - 1.0f;
 
-    // Calculate normalized device coordinates (NDC: -1 to 1)
-    vec2 ndc = (vec2(pixelCoords) / vec2(imageSize)) * 2.0 - 1.0;
+    float aspect = u_ScreenResolutionX / u_ScreenResolutionY;
+    const float HALF_FOV = radians(30.0f);
+    float tanHalfFov = tan(HALF_FOV);
 
-    // Calculate ray direction in world space
-    // rayDir = forward + (x * right) + (y * up)
-    vec3 ray_x = u_cameraRight * (ndc.x * u_viewPlaneW * 0.5);
-    vec3 ray_y = u_cameraUp * (ndc.y * u_viewPlaneH * 0.5);
-    vec3 rayDir = normalize(u_cameraForward * 1.0f + ray_x + ray_y);
+    float px = ndcX * aspect * tanHalfFov;
+    float py = -ndcY * tanHalfFov; // flip Y
 
-    // --- 1. Ray Initialization ---
-    RayState ray = InitializeRay(u_cameraPos, rayDir, u_R_S);
+    // Standard camera space vectors
+    vec3 forward = normalize(u_cameraTarget - u_cameraPos);
+    vec3 worldUp = vec3(0.0, 1.0, 0.0);
 
-    vec4 finalColor = vec4(0.1, 0.1, 0.1, 1.0); // Default: Grey (Max steps reached)
-
-    // --- 2. Ray Tracing Loop ---
-    for (int step = 0; step < u_maxSteps; ++step)
-    {
-        // Check for event horizon (r <= R_S)
-        if (ray.r <= u_R_S)
-        {
-            finalColor = vec4(0.0, 0.0, 0.0, 1.0); // Black hole
-            break;
-        }
-
-        // Check for escape (r > escapeRadius)
-        if (ray.r > u_escapeRadius)
-        {
-            // Simple sky background based on polar angle (theta)
-            float normTheta = ray.theta / PI;
-            // Simple gradient (blue to red based on angle)
-            finalColor = vec4(normTheta, 0.2, 1.0 - normTheta, 1.0);
-            break;
-        }
-
-        // --- 3. RK4 Step ---
-        RK4Step(ray, u_R_S, u_dLambda);
+    // Handle edge case: forward nearly parallel to worldUp
+    vec3 right;
+    if (abs(dot(forward, worldUp)) > 0.999) {
+        worldUp = vec3(0.0, 0.0, 1.0);
     }
 
-    // Write the resulting color to the output texture
-    imageStore(outImage, pixelCoords, finalColor);
+    right = normalize(cross(forward, worldUp));
+    vec3 up = normalize(cross(right, forward));
+
+    vec3 dir = normalize(forward + px * right + py * up);
+    initialRay.direction = dir;
+    initialRay.cartesianPos = u_cameraPos;
+
+    vec3 relPos = u_cameraPos;
+
+    // get initial spherical coords
+
+    initialRay.r = length(relPos);
+    if (initialRay.r < 1e-10) 
+    {
+        initialRay.theta = 0.0;
+        initialRay.phi = 0.0;
+    }
+    else 
+    {
+        initialRay.theta = acos(clamp(relPos.z / initialRay.r, -1.0, 1.0));
+        initialRay.phi = atan(relPos.y, relPos.x);
+    }
+
+    // --- 3. Calculate initial derivatives (dr, dtheta, dphi) ---
+    float dx = dir.x, dy = dir.y, dz = dir.z;
+    float r = initialRay.r;
+    float theta = initialRay.theta;
+    float phi = initialRay.phi;
+
+    initialRay.dr = sin(theta) * cos(phi) * dx + sin(theta) * sin(phi) * dy + cos(theta) * dz;
+    initialRay.dtheta = (cos(theta) * cos(phi) * dx + cos(theta) * sin(phi) * dy - sin(theta) * dz) / r;
+    
+    float r_sin_theta = r * sin(theta);
+    if (abs(r_sin_theta) < 1e-10) 
+    {
+        initialRay.dphi = 0.0;
+    }
+    else 
+    {
+        initialRay.dphi = (-sin(phi) * dx + cos(phi) * dy) / r_sin_theta;
+    }
+
+    // angular velocity/momentum
+    initialRay.L = r * r * sin(theta) * initialRay.dphi;
+    // Energy (E) 
+    float f = 1.0 - u_RS / r;
+
+    // This is derived from the null geodesic condition: g_mu_nu * p^mu * p^nu = 0
+    float radial_term_sq = initialRay.dr * initialRay.dr;
+    float angular_term_f = f * r * r * (initialRay.dtheta * initialRay.dtheta + sin(theta) * sin(theta) * initialRay.dphi * initialRay.dphi);
+
+    float E_sq = radial_term_sq + angular_term_f;
+    if (E_sq < 0.0) E_sq = 0.0;
+
+    initialRay.E = sqrt(E_sq);
+
+    return initialRay;
 }
-)glsl";
+
+void GetDerivatives(const Ray ray, out float d2r, out float d2theta, out float d2phi) 
+{
+    float r = ray.r, theta = ray.theta;
+    float dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
+    float rs = u_RS;
+
+
+    float f = 1.0 - rs / r;
+    float dt_dL;
+
+    // Check for near event horizon
+    if (abs(f) < 1e-6) {
+        dt_dL = 0.0;
+        d2r = d2theta = d2phi = 0.0;
+        return;
+    }
+    else {
+        // dt/d\lambda = E / f(r). This is correct for the equation of motion.
+        dt_dL = ray.E / f;
+    }
+
+    // Geodesic Equation for r: d^2 r / d\lambda^2
+    d2r = -(rs / (2.0 * r * r)) * f * dt_dL * dt_dL
+        + (rs / (2.0 * r * r * f)) * dr * dr
+        + r * (dtheta * dtheta + sin(theta) * sin(theta) * dphi * dphi);
+
+    // Geodesic Equation for theta: d^2 theta / d\lambda^2
+    d2theta = -2.0 * dr * dtheta / r
+        + sin(theta) * cos(theta) * dphi * dphi;
+
+    // Geodesic Equation for phi: d^2 phi / d\lambda^2
+    float sin_theta = sin(theta);
+    // Avoid pole singularity (theta = 0 or theta = PI)
+    if (abs(sin_theta) < 1e-6) {
+        d2phi = 0.0;
+    }
+    else {
+        d2phi = -2.0 * dr * dphi / r
+            - 2.0 * cos(theta) / sin_theta * dtheta * dphi;
+    }
+}
+
+void RK4STEP(inout Ray ray) 
+{
+    float half_dL = 0.5 * u_dLambda;
+    float sixth_dL = u_dLambda / 6.0;
+
+    // --- K1 (Derivatives at start of interval) ---
+    Ray k1_ray = ray;
+    float k1_d2r, k1_d2theta, k1_d2phi;
+    GetDerivatives(k1_ray, k1_d2r, k1_d2theta, k1_d2phi);
+
+    // --- K2 (Derivatives at midpoint using K1) ---
+    Ray k2_ray;
+    k2_ray.E = ray.E; k2_ray.L = ray.L; // Conserved quantities
+
+    k2_ray.r = ray.r + half_dL * k1_ray.dr;
+    k2_ray.theta = ray.theta + half_dL * k1_ray.dtheta;
+    k2_ray.phi = ray.phi + half_dL * k1_ray.dphi;
+
+    k2_ray.dr = ray.dr + half_dL * k1_d2r;
+    k2_ray.dtheta = ray.dtheta + half_dL * k1_d2theta;
+    k2_ray.dphi = ray.dphi + half_dL * k1_d2phi;
+
+    float k2_d2r, k2_d2theta, k2_d2phi;
+    GetDerivatives(k2_ray, k2_d2r, k2_d2theta, k2_d2phi);
+
+    // --- K3 (Derivatives at midpoint using K2) ---
+    Ray k3_ray;
+    k3_ray.E = ray.E; k3_ray.L = ray.L;
+
+    k3_ray.r = ray.r + half_dL * k2_ray.dr;
+    k3_ray.theta = ray.theta + half_dL * k2_ray.dtheta;
+    k3_ray.phi = ray.phi + half_dL * k2_ray.dphi;
+
+    k3_ray.dr = ray.dr + half_dL * k2_d2r;
+    k3_ray.dtheta = ray.dtheta + half_dL * k2_d2theta;
+    k3_ray.dphi = ray.dphi + half_dL * k2_d2phi;
+
+    float k3_d2r, k3_d2theta, k3_d2phi;
+    GetDerivatives(k3_ray, k3_d2r, k3_d2theta, k3_d2phi);
+
+    // --- K4 (Derivatives at end of interval using K3) ---
+    Ray k4_ray;
+    k4_ray.E = ray.E; k4_ray.L = ray.L;
+
+    k4_ray.r = ray.r + u_dLambda * k3_ray.dr;
+    k4_ray.theta = ray.theta + u_dLambda * k3_ray.dtheta;
+    k4_ray.phi = ray.phi + u_dLambda * k3_ray.dphi;
+
+    k4_ray.dr = ray.dr + u_dLambda * k3_d2r;
+    k4_ray.dtheta = ray.dtheta + u_dLambda * k3_d2theta;
+    k4_ray.dphi = ray.dphi + u_dLambda * k3_d2phi;
+
+    float k4_d2r, k4_d2theta, k4_d2phi;
+    GetDerivatives(k4_ray, k4_d2r, k4_d2theta, k4_d2phi);
+
+    // --- Final update (Weighted average of slopes) ---
+
+    // Update positions (r, theta, phi) using velocities (dr, dtheta, dphi)
+    ray.r += sixth_dL * (k1_ray.dr + 2.0 * k2_ray.dr + 2.0 * k3_ray.dr + k4_ray.dr);
+    ray.theta += sixth_dL * (k1_ray.dtheta + 2.0 * k2_ray.dtheta + 2.0 * k3_ray.dtheta + k4_ray.dtheta);
+    ray.phi += sixth_dL * (k1_ray.dphi + 2.0 * k2_ray.dphi + 2.0 * k3_ray.dphi + k4_ray.dphi);
+
+    // Update velocities (dr, dtheta, dphi) using second derivatives (d2r, d2theta, d2phi)
+    ray.dr += sixth_dL * (k1_d2r + 2.0 * k2_d2r + 2.0 * k3_d2r + k4_d2r);
+    ray.dtheta += sixth_dL * (k1_d2theta + 2.0 * k2_d2theta + 2.0 * k3_d2theta + k4_d2theta);
+    ray.dphi += sixth_dL * (k1_d2phi + 2.0 * k2_d2phi + 2.0 * k3_d2phi + k4_d2phi);
+}
+
+vec3 TraceAndGetColor(Ray initialRay)
+{
+    Ray currentRay = initialRay;
+
+    for (int i = 0; i < u_maxSteps; i++)
+    {
+        RK4STEP(currentRay);
+        SphericalToCartesian(currentRay);
+
+        if (currentRay.r > u_escapeRadius)
+        {
+            return vec3(0.5, 0.5, 0.5);
+        }
+
+        if (currentRay.r <= u_RS)
+        {
+            return vec3(1.0, 0.0, 0.0);
+        }
+
+        for (int j = 0; j < u_numObjects; j++)
+        {
+            if (InterceptObject(currentRay.cartesianPos, u_objects[j]))
+            {
+                return u_objects[j].color / 255.0;
+            }
+        }
+    }
+
+    // Default return color if max steps reached (black)
+    return vec3(0.0, 0.0, 0.0);
+}
+
+void main() 
+{
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    if (pixelCoords.x >= u_ScreenResolutionX || pixelCoords.y >= u_ScreenResolutionY)
+        return;
+
+    Ray initialRay = GetInitialRay(vec2(pixelCoords));
+
+    vec3 color = TraceAndGetColor(initialRay);
+
+    imageStore(outImage, pixelCoords, vec4(color, 1.0));
+    return;
+}

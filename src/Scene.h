@@ -32,7 +32,7 @@ out vec4 FragColor;
 
 void main()
 {
-    FragColor = vec4(0.5, 0.5, 0.5, 1.0); // Gray color
+    FragColor = vec4(0.2, 0.2, 0.2, 0.5); // Gray color
 }
 )glsl";
 #pragma endregion
@@ -157,11 +157,12 @@ public:
 
 	GLuint objectSSBO;
 	int numObjects;
+
 	// position, radius, color
 	vector<Object> objects = {
 	{vec3(-1e11, 5e10, 0), 1e10, vec3(255, 255, 255)},   // scaled down
 	{vec3(4e10, 0, 0), 5e9, vec3(0, 255, 0)},
-	{vec3(0.0f, 0.0f, 2e10), 1e9, vec3(255, 0, 0)}
+	{vec3(0.0f, 0.0f, 9e10), 1e9, vec3(255, 0, 0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -181,47 +182,42 @@ public:
 	{
 		if (engine.computeProgram) 
 		{
+			// 1. Activate the Compute Shader
 			glUseProgram(engine.computeProgram);
 
-			// 1. Bind the output texture as an image unit (0)
-			// This texture is where the compute shader writes its results.
-			glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+			// --- 2. SET ALL UNIFORMS ---
 
-			// 2. Bind the Objects SSBO (binding = 1)
-			// This makes the 'objects' vector available to the compute shader.
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, objectSSBO);
+			// Black Hole / Raytracer Constants
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_RS"), (float)sagittariusA.R_S);
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), 1e8f);    // Example value: Step size (adjust as needed)
+			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), 30000);   // Example value: Max iterations
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_escapeRadius"), 1e25f); // Example value
+			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_numObjects"), numObjects);
 
-			// 3. Calculate and Set Camera Uniforms
-			vec3 cameraPos = camera.calculatePosition();
-			vec3 forward = normalize(camera.target - cameraPos);
-			vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
+			// Camera Vectors
+			vec3 camPos = camera.calculatePosition();
+			vec3 camTarget = camera.target;
 
-			if (fabs(dot(forward, worldUp)) > 0.999f) {
-				worldUp = vec3(0.0f, 0.0f, 1.0f);
-			}
-			vec3 right = normalize(cross(forward, worldUp));
-			vec3 up = normalize(cross(right, forward));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraPos"), 1, glm::value_ptr(camPos));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraTarget"), 1, glm::value_ptr(camTarget));
 
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraPos"), 1, glm::value_ptr(cameraPos));
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraFront"), 1, glm::value_ptr(forward));
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraUp"), 1, glm::value_ptr(up));
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraRight"), 1, glm::value_ptr(right));
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "fovy"), radians(60.0f)); // Pass FOV for view calculation
+			// Screen Resolution
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionX"), (float)engine.WIDTH);
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionY"), (float)engine.HEIGHT);
 
-			// 4. Set Black Hole and Object Count Uniforms
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "bh.position"), 1, glm::value_ptr(sagittariusA.position));
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "bh.R_S"), sagittariusA.R_S);
-			glUniform1i(glGetUniformLocation(engine.computeProgram, "numObjects"), numObjects);
+			// --- 3. DISPATCH THE COMPUTE SHADER ---
+			// Your GLSL is 16x16 local size. Calculate the number of work groups.
+			const int local_size = 16;
+			int num_groups_x = (engine.WIDTH + local_size - 1) / local_size;
+			int num_groups_y = (engine.HEIGHT + local_size - 1) / local_size;
 
-			// 5. Dispatch the compute shader
-			// Calculate number of work groups needed: ceiling(total_pixels / local_size) where local_size is 10x10
-			int numGroupsX = (engine.WIDTH + 9) / 10;
-			int numGroupsY = (engine.HEIGHT + 9) / 10;
-			glDispatchCompute(numGroupsX, numGroupsY, 1);
+			glDispatchCompute((GLuint)num_groups_x, (GLuint)num_groups_y, 1);
 
-			// 6. Memory barrier to ensure compute results are visible to the texture reading (quad) shader
+			// --- 4. MEMORY BARRIER ---
+			// Ensures the GPU finishes writing to the output image (binding 0)
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
+			// Clean up
 			glUseProgram(0);
 		}
 		else 
@@ -304,17 +300,16 @@ private:
 	{
 		numObjects = objects.size();
 
-		// 1. Generate Buffer
 		glGenBuffers(1, &objectSSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, objectSSBO);
 
-		// 2. Copy data to GPU. GL_STATIC_DRAW because the objects don't move.
 		glBufferData(GL_SHADER_STORAGE_BUFFER, objects.size() * sizeof(Object), objects.data(), GL_STATIC_DRAW);
 
-		// 3. Unbind
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, objectSSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
+	// test function (skip this)
 	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, float radius, vec3& hitPoint) {
 		vec3 oc = origin - center;
 		float a = dot(dir, dir);
@@ -333,21 +328,22 @@ private:
 
 	void InitScreenTexture() 
 	{
-		pixels.resize(engine.WIDTH * engine.HEIGHT * 4); // Resize CPU buffer (now mostly unused)
+		pixels.resize(engine.WIDTH * engine.HEIGHT * 3);
 
-		// Bind and allocate memory for the texture (we'll use RGBA8)
-		glGenTextures(1, &engine.texture); // Ensure texture ID is generated
+		if (engine.texture == 0) {
+			glGenTextures(1, &engine.texture);
+		}
+
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, engine.WIDTH, engine.HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
-		// Set texture parameters
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, engine.WIDTH, engine.HEIGHT, 0, GL_RGBA, GL_FLOAT, nullptr);
+
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		// Bind as an image unit for the compute shader (used by the GPU path)
-		glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+		glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -389,7 +385,8 @@ private:
 
 	void DrawQuad() const
 	{
-		glDisable(GL_DEPTH_TEST); // The quad is always on top
+		glDepthMask(GL_FALSE); // <--- CRITICAL: Prevents depth buffer writes
+		glDisable(GL_DEPTH_TEST);
 
 		glUseProgram(quadShaderProgramID);
 
@@ -427,7 +424,7 @@ private:
 		glBindVertexArray(gridVAO);
 		glDrawArrays(GL_LINES, 0, lineCount);
 		glBindVertexArray(0);
-		glDisable(GL_DEPTH_TEST);
+		//glDisable(GL_DEPTH_TEST);
 	}
 
 public:
