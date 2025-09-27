@@ -39,11 +39,11 @@ struct Ray
 
 class RayTracer
 {
+public:
 	const float dLambda = 1e6;
 	const float maxSteps = 5000;
 	const float escapeRadius = 1e12;
 
-public:
 	RayTracer(){}
 
 	static Ray GetInitialRay(const Camera& camera, int pixelX, int pixelY, int WIDTH, int HEIGHT, const BlackHole& blackHole)

@@ -5,6 +5,7 @@
 #include "Object.h"
 #include "Engine.h"
 #include "RayTracer.h"
+#include "raytracer_source.h"
 
 using namespace std;
 using namespace glm;
@@ -99,6 +100,44 @@ GLuint CompileShader(const char* vertexSource, const char* fragmentSource)  {
 	return programID;
 }
 
+GLuint CompileComputeShader(const char* computeSource) {
+	// 1. Compile Compute Shader
+	GLuint compute = glCreateShader(GL_COMPUTE_SHADER);
+	glShaderSource(compute, 1, &computeSource, NULL);
+	glCompileShader(compute);
+
+	// Check compilation errors
+	int success;
+	char infoLog[512];
+	glGetShaderiv(compute, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(compute, 512, NULL, infoLog);
+		std::cerr << "ERROR::SHADER::COMPUTE::COMPILATION_FAILED\n" << infoLog << std::endl;
+		glDeleteShader(compute);
+		return 0;
+	}
+
+	// 2. Link Program
+	GLuint programID = glCreateProgram();
+	glAttachShader(programID, compute);
+	glLinkProgram(programID);
+
+	// Check linking errors
+	glGetProgramiv(programID, GL_LINK_STATUS, &success);
+	if (!success) {
+		glGetProgramInfoLog(programID, 512, NULL, infoLog);
+		std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED (Compute)\n" << infoLog << std::endl;
+		glDeleteShader(compute);
+		glDeleteProgram(programID);
+		return 0;
+	}
+
+	// 3. Clean up
+	glDeleteShader(compute);
+
+	return programID;
+}
+
 class Scene
 {
 public:
@@ -116,6 +155,8 @@ public:
 	GLuint quadShaderProgramID;
 	vector<unsigned char> pixels;
 
+	GLuint objectSSBO;
+	int numObjects;
 	// position, radius, color
 	vector<Object> objects = {
 	{vec3(-1e11, 5e10, 0), 1e10, vec3(255, 255, 255)},   // scaled down
@@ -130,80 +171,150 @@ public:
 
 		quadShaderProgramID = CompileShader(QUAD_VERTEX_SHADER_SOURCE, QUAD_FRAGMENT_SHADER_SOURCE);
 
+		engine.computeProgram = CompileComputeShader(COMPUTE_SHADER_SOURCE);
+
 		InitScreenTexture();
+		InitSSBO();
     }
 
 	void Update()
 	{
-		for (int x = 0; x < engine.WIDTH; x++)
+		if (engine.computeProgram) 
 		{
-			for (int y = 0; y < engine.HEIGHT; y++)
-			{
-				#pragma region camera-ray projection test
-				/*// Build ray (we don’t actually use spherical components here)
-				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
+			glUseProgram(engine.computeProgram);
 
-				// --- Projection math (debug view) ---
-				float ndcX = ((x + 0.5f) / (float)engine.WIDTH) * 2.0f - 1.0f;
-				float ndcY = ((y + 0.5f) / (float)engine.HEIGHT) * 2.0f - 1.0f;
+			// 1. Bind the output texture as an image unit (0)
+			// This texture is where the compute shader writes its results.
+			glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
-				float aspect = (float)engine.WIDTH / (float)engine.HEIGHT;
-				float tanHalfFov = tanf(0.5f * radians(60.0f));
+			// 2. Bind the Objects SSBO (binding = 1)
+			// This makes the 'objects' vector available to the compute shader.
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, objectSSBO);
 
-				float px = ndcX * aspect * tanHalfFov;
-				float py = -ndcY * tanHalfFov;
+			// 3. Calculate and Set Camera Uniforms
+			vec3 cameraPos = camera.calculatePosition();
+			vec3 forward = normalize(camera.target - cameraPos);
+			vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
 
-				vec3 forward = normalize(camera.target - camera.calculatePosition());
-				vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
-				if (fabs(dot(forward, worldUp)) > 0.999f) {
-					worldUp = vec3(0.0f, 0.0f, 1.0f);
-				}
-				vec3 right = normalize(cross(forward, worldUp));
-				vec3 up = normalize(cross(right, forward));
-				vec3 dir = normalize(forward + px * right + py * up);
-
-				// --- Sphere intersection test ---
-				vec3 hit;
-				uint8_t r, g, b;
-				if (intersectSphere(camera.calculatePosition(), dir, sagittariusA.position, sagittariusA.R_S, hit)) {
-					float u = 0.5f + atan2(hit.y, hit.x) / (2.0f * M_PI);
-					float v = 0.5f - asin(hit.z) / M_PI;
-
-					int gridU = (int)(u * 10) % 2;
-					int gridV = (int)(v * 10) % 2;
-					bool checker = (gridU ^ gridV);
-
-					if (checker) { r = 255; g = 255; b = 255; }
-					else { r = 0;   g = 0;   b = 0; }
-				}
-				else {
-					r = g = b = 50; // background gray
-				}
-
-				int index = (y * engine.WIDTH + x) * 3;
-				pixels[index + 0] = r;
-				pixels[index + 1] = g;
-				pixels[index + 2] = b;*/
-				#pragma endregion
-
-				Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
-
-				vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
-				//vec3 tracedColor = vec3(150,100, 60);
-
-				int index = (y * engine.WIDTH + x) * 3;
-				pixels[index + 0] = tracedColor.x;// R
-				pixels[index + 1] = tracedColor.y;// G
-				pixels[index + 2] = tracedColor.z;// B
+			if (fabs(dot(forward, worldUp)) > 0.999f) {
+				worldUp = vec3(0.0f, 0.0f, 1.0f);
 			}
-		}
+			vec3 right = normalize(cross(forward, worldUp));
+			vec3 up = normalize(cross(right, forward));
 
-		glBindTexture(GL_TEXTURE_2D, engine.texture);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-		glBindTexture(GL_TEXTURE_2D, 0);
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraPos"), 1, glm::value_ptr(cameraPos));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraFront"), 1, glm::value_ptr(forward));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraUp"), 1, glm::value_ptr(up));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "cameraRight"), 1, glm::value_ptr(right));
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "fovy"), radians(60.0f)); // Pass FOV for view calculation
+
+			// 4. Set Black Hole and Object Count Uniforms
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "bh.position"), 1, glm::value_ptr(sagittariusA.position));
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "bh.R_S"), sagittariusA.R_S);
+			glUniform1i(glGetUniformLocation(engine.computeProgram, "numObjects"), numObjects);
+
+			// 5. Dispatch the compute shader
+			// Calculate number of work groups needed: ceiling(total_pixels / local_size) where local_size is 10x10
+			int numGroupsX = (engine.WIDTH + 9) / 10;
+			int numGroupsY = (engine.HEIGHT + 9) / 10;
+			glDispatchCompute(numGroupsX, numGroupsY, 1);
+
+			// 6. Memory barrier to ensure compute results are visible to the texture reading (quad) shader
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+			glUseProgram(0);
+		}
+		else 
+		{
+			cout << "FALLBACK ON CPU \n";
+
+			// CPU fallback code
+			for (int x = 0; x < engine.WIDTH; x++)
+			{
+				for (int y = 0; y < engine.HEIGHT; y++)
+				{
+					#pragma region camera-ray projection test
+					/*// Build ray (we don’t actually use spherical components here)
+					Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
+
+					// --- Projection math (debug view) ---
+					float ndcX = ((x + 0.5f) / (float)engine.WIDTH) * 2.0f - 1.0f;
+					float ndcY = ((y + 0.5f) / (float)engine.HEIGHT) * 2.0f - 1.0f;
+
+					float aspect = (float)engine.WIDTH / (float)engine.HEIGHT;
+					float tanHalfFov = tanf(0.5f * radians(60.0f));
+
+					float px = ndcX * aspect * tanHalfFov;
+					float py = -ndcY * tanHalfFov;
+
+					vec3 forward = normalize(camera.target - camera.calculatePosition());
+					vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
+					if (fabs(dot(forward, worldUp)) > 0.999f) {
+						worldUp = vec3(0.0f, 0.0f, 1.0f);
+					}
+					vec3 right = normalize(cross(forward, worldUp));
+					vec3 up = normalize(cross(right, forward));
+					vec3 dir = normalize(forward + px * right + py * up);
+
+					// --- Sphere intersection test ---
+					vec3 hit;
+					uint8_t r, g, b;
+					if (intersectSphere(camera.calculatePosition(), dir, sagittariusA.position, sagittariusA.R_S, hit)) {
+						float u = 0.5f + atan2(hit.y, hit.x) / (2.0f * M_PI);
+						float v = 0.5f - asin(hit.z) / M_PI;
+
+						int gridU = (int)(u * 10) % 2;
+						int gridV = (int)(v * 10) % 2;
+						bool checker = (gridU ^ gridV);
+
+						if (checker) { r = 255; g = 255; b = 255; }
+						else { r = 0;   g = 0;   b = 0; }
+					}
+					else {
+						r = g = b = 50; // background gray
+					}
+
+					int index = (y * engine.WIDTH + x) * 3;
+					pixels[index + 0] = r;
+					pixels[index + 1] = g;
+					pixels[index + 2] = b;*/
+					#pragma endregion
+
+					Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
+
+					vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
+					//vec3 tracedColor = vec3(150,100, 60);
+
+					int index = (y * engine.WIDTH + x) * 3;
+					pixels[index + 0] = tracedColor.x;// R
+					pixels[index + 1] = tracedColor.y;// G
+					pixels[index + 2] = tracedColor.z;// B
+				}
+			}
+
+			glBindTexture(GL_TEXTURE_2D, engine.texture);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, engine.WIDTH, engine.HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+			glBindTexture(GL_TEXTURE_2D, 0);
+		}
 	}
 
 private:
+
+	void InitSSBO()
+	{
+		numObjects = objects.size();
+
+		// 1. Generate Buffer
+		glGenBuffers(1, &objectSSBO);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, objectSSBO);
+
+		// 2. Copy data to GPU. GL_STATIC_DRAW because the objects don't move.
+		glBufferData(GL_SHADER_STORAGE_BUFFER, objects.size() * sizeof(Object), objects.data(), GL_STATIC_DRAW);
+
+		// 3. Unbind
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
+
 	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, float radius, vec3& hitPoint) {
 		vec3 oc = origin - center;
 		float a = dot(dir, dir);
@@ -222,17 +333,23 @@ private:
 
 	void InitScreenTexture() 
 	{
-		pixels.resize(engine.WIDTH * engine.HEIGHT * 3); // RGB per pixel
+		pixels.resize(engine.WIDTH * engine.HEIGHT * 4); // Resize CPU buffer (now mostly unused)
 
-		// Bind and allocate memory for the texture
+		// Bind and allocate memory for the texture (we'll use RGBA8)
+		glGenTextures(1, &engine.texture); // Ensure texture ID is generated
 		glBindTexture(GL_TEXTURE_2D, engine.texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, engine.WIDTH, engine.HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, engine.WIDTH, engine.HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
 		// Set texture parameters
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		// Bind as an image unit for the compute shader (used by the GPU path)
+		glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
 	void InitGrid() {

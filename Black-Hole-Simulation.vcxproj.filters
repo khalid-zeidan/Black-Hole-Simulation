@@ -26,13 +26,7 @@
     <ClInclude Include="src\BlackHole.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Ray.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\allIncludes.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Physics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Camera.h">
@@ -47,8 +41,13 @@
     <ClInclude Include="src\RayTracer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\raytracer_source.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\Geodesic.comp" />
+    <None Include="src\raytracer.comp">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

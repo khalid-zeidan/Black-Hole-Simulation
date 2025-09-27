@@ -139,10 +139,14 @@
     <ClInclude Include="src\RayTracer.h" />
     <ClInclude Include="src\Object.h" />
     <ClInclude Include="src\Camera.h" />
+    <ClInclude Include="src\raytracer_source.h" />
     <ClInclude Include="src\Scene.h" />
     <ClInclude Include="src\allIncludes.h" />
     <ClInclude Include="src\BlackHole.h" />
     <ClInclude Include="src\Engine.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\raytracer.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
