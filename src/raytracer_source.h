@@ -25,18 +25,18 @@ uniform float u_ScreenResolutionX;
 uniform float u_ScreenResolutionY;
 
 struct Object {
-    vec3 position;
-    vec3 color;
-    float radius;
+    vec4 positionRadius; 
+    vec4 color;
+    vec4 padding;
 };
 
 bool InterceptObject(vec3 worldRayPos, Object object) {
-    float dx = worldRayPos.x - object.position.x;
-    float dy = worldRayPos.y - object.position.y;
-    float dz = worldRayPos.z - object.position.z;
+    float dx = worldRayPos.x - object.positionRadius.x;
+    float dy = worldRayPos.y - object.positionRadius.y;
+    float dz = worldRayPos.z - object.positionRadius.z;
 
     float distanceSquared = dx * dx + dy * dy + dz * dz;
-    return distanceSquared <= (object.radius * object.radius);
+    return distanceSquared <= (object.positionRadius.w * object.positionRadius.w);
 }
 
 layout(std430, binding = 1) buffer ObjectBuffer {
@@ -49,22 +49,22 @@ struct Ray {
     vec3 cartesianPos;
     vec3 direction;
 
-    float r, theta, phi;    
-    float dr, dtheta, dphi; 
-    float E;                
-    float L;                
+    float r, theta, phi;
+    float dr, dtheta, dphi;
+    float E;
+    float L;
 };
 
 // RAY HELPER FUNCTIONS
 
-void SphericalToCartesian(inout Ray ray) 
+void SphericalToCartesian(inout Ray ray)
 {
     ray.cartesianPos.x = ray.r * sin(ray.theta) * cos(ray.phi);
     ray.cartesianPos.y = ray.r * sin(ray.theta) * sin(ray.phi);
     ray.cartesianPos.z = ray.r * cos(ray.theta);
 }
 
-void CartesianToSpherical(inout Ray ray) 
+void CartesianToSpherical(inout Ray ray)
 {
     ray.r = length(ray.cartesianPos);
     if (ray.r < 1e-10) { // Avoid division by zero at the origin
@@ -78,7 +78,7 @@ void CartesianToSpherical(inout Ray ray)
 
 // RK4 AND CARTESIAN EQUATIONS
 
-Ray GetInitialRay(vec2 pixelPos) 
+Ray GetInitialRay(vec2 pixelPos)
 {
     Ray initialRay;
 
@@ -115,12 +115,12 @@ Ray GetInitialRay(vec2 pixelPos)
     // get initial spherical coords
 
     initialRay.r = length(relPos);
-    if (initialRay.r < 1e-10) 
+    if (initialRay.r < 1e-10)
     {
         initialRay.theta = 0.0;
         initialRay.phi = 0.0;
     }
-    else 
+    else
     {
         initialRay.theta = acos(clamp(relPos.z / initialRay.r, -1.0, 1.0));
         initialRay.phi = atan(relPos.y, relPos.x);
@@ -134,13 +134,13 @@ Ray GetInitialRay(vec2 pixelPos)
 
     initialRay.dr = sin(theta) * cos(phi) * dx + sin(theta) * sin(phi) * dy + cos(theta) * dz;
     initialRay.dtheta = (cos(theta) * cos(phi) * dx + cos(theta) * sin(phi) * dy - sin(theta) * dz) / r;
-    
+
     float r_sin_theta = r * sin(theta);
-    if (abs(r_sin_theta) < 1e-10) 
+    if (abs(r_sin_theta) < 1e-10)
     {
         initialRay.dphi = 0.0;
     }
-    else 
+    else
     {
         initialRay.dphi = (-sin(phi) * dx + cos(phi) * dy) / r_sin_theta;
     }
@@ -162,7 +162,7 @@ Ray GetInitialRay(vec2 pixelPos)
     return initialRay;
 }
 
-void GetDerivatives(const Ray ray, out float d2r, out float d2theta, out float d2phi) 
+void GetDerivatives(const Ray ray, out float d2r, out float d2theta, out float d2phi)
 {
     float r = ray.r, theta = ray.theta;
     float dr = ray.dr, dtheta = ray.dtheta, dphi = ray.dphi;
@@ -204,7 +204,7 @@ void GetDerivatives(const Ray ray, out float d2r, out float d2theta, out float d
     }
 }
 
-void RK4STEP(inout Ray ray) 
+void RK4STEP(inout Ray ray)
 {
     float half_dL = 0.5 * u_dLambda;
     float sixth_dL = u_dLambda / 6.0;
@@ -295,7 +295,8 @@ vec3 TraceAndGetColor(Ray initialRay)
         {
             if (InterceptObject(currentRay.cartesianPos, u_objects[j]))
             {
-                return u_objects[j].color / 255.0;
+                vec4 col = u_objects[j].color / 255.0;
+                return vec3(col.x, col.y, col.z);
             }
         }
     }
@@ -304,7 +305,7 @@ vec3 TraceAndGetColor(Ray initialRay)
     return vec3(0.0, 0.0, 0.0);
 }
 
-void main() 
+void main()
 {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
     if (pixelCoords.x >= u_ScreenResolutionX || pixelCoords.y >= u_ScreenResolutionY)
@@ -317,5 +318,4 @@ void main()
     imageStore(outImage, pixelCoords, vec4(color, 1.0));
     return;
 }
-
 )glsl";

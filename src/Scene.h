@@ -158,11 +158,11 @@ public:
 	GLuint objectSSBO;
 	int numObjects;
 
-	// position, radius, color
+	// positionRadius_x-y-z-Radius, color, padding must be multiples of 16 - 4*4 + 4*4 +4*4 = 48
 	vector<Object> objects = {
-	{vec3(-1e11, 5e10, 0), 1e10, vec3(255, 255, 255)},   // scaled down
-	{vec3(4e10, 0, 0), 5e9, vec3(0, 255, 0)},
-	{vec3(0.0f, 0.0f, 9e10), 1e9, vec3(255, 0, 0)}
+	{vec4(-1e11, 5e10, 0, 1e10), vec4(255, 255, 0, 0), vec4(0)},
+	{vec4(5e10, 0, 0, 1e10), vec4(255, 0, 0, 0), vec4(0)},
+	{vec4(0.0f, 0.0f, 9e10, 1e10), vec4(255, 0, 255, 0), vec4(0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -182,104 +182,46 @@ public:
 	{
 		if (engine.computeProgram) 
 		{
-			// 1. Activate the Compute Shader
 			glUseProgram(engine.computeProgram);
 
-			// --- 2. SET ALL UNIFORMS ---
-
-			// Black Hole / Raytracer Constants
+			// --- SEND DATA TO GPU ---
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_RS"), (float)sagittariusA.R_S);
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), 1e8f);    // Example value: Step size (adjust as needed)
-			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), 30000);   // Example value: Max iterations
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_escapeRadius"), 1e25f); // Example value
+
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), 1e7f);	// 1e7
+			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), 20000);	// 20000
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_escapeRadius"), 1e17f); // 1e17
 			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_numObjects"), numObjects);
 
-			// Camera Vectors
 			vec3 camPos = camera.calculatePosition();
 			vec3 camTarget = camera.target;
 
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraPos"), 1, glm::value_ptr(camPos));
-			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraTarget"), 1, glm::value_ptr(camTarget));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraPos"), 1, value_ptr(camPos));
+			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraTarget"), 1, value_ptr(camTarget));
 
-			// Screen Resolution
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionX"), (float)engine.WIDTH);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionY"), (float)engine.HEIGHT);
 
 			// --- 3. DISPATCH THE COMPUTE SHADER ---
-			// Your GLSL is 16x16 local size. Calculate the number of work groups.
 			const int local_size = 16;
 			int num_groups_x = (engine.WIDTH + local_size - 1) / local_size;
 			int num_groups_y = (engine.HEIGHT + local_size - 1) / local_size;
 
 			glDispatchCompute((GLuint)num_groups_x, (GLuint)num_groups_y, 1);
 
-			// --- 4. MEMORY BARRIER ---
-			// Ensures the GPU finishes writing to the output image (binding 0)
 			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-			// Clean up
 			glUseProgram(0);
 		}
 		else 
 		{
 			cout << "FALLBACK ON CPU \n";
 
-			// CPU fallback code
 			for (int x = 0; x < engine.WIDTH; x++)
 			{
 				for (int y = 0; y < engine.HEIGHT; y++)
 				{
-					#pragma region camera-ray projection test
-					/*// Build ray (we don’t actually use spherical components here)
-					Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
-
-					// --- Projection math (debug view) ---
-					float ndcX = ((x + 0.5f) / (float)engine.WIDTH) * 2.0f - 1.0f;
-					float ndcY = ((y + 0.5f) / (float)engine.HEIGHT) * 2.0f - 1.0f;
-
-					float aspect = (float)engine.WIDTH / (float)engine.HEIGHT;
-					float tanHalfFov = tanf(0.5f * radians(60.0f));
-
-					float px = ndcX * aspect * tanHalfFov;
-					float py = -ndcY * tanHalfFov;
-
-					vec3 forward = normalize(camera.target - camera.calculatePosition());
-					vec3 worldUp = vec3(0.0f, 1.0f, 0.0f);
-					if (fabs(dot(forward, worldUp)) > 0.999f) {
-						worldUp = vec3(0.0f, 0.0f, 1.0f);
-					}
-					vec3 right = normalize(cross(forward, worldUp));
-					vec3 up = normalize(cross(right, forward));
-					vec3 dir = normalize(forward + px * right + py * up);
-
-					// --- Sphere intersection test ---
-					vec3 hit;
-					uint8_t r, g, b;
-					if (intersectSphere(camera.calculatePosition(), dir, sagittariusA.position, sagittariusA.R_S, hit)) {
-						float u = 0.5f + atan2(hit.y, hit.x) / (2.0f * M_PI);
-						float v = 0.5f - asin(hit.z) / M_PI;
-
-						int gridU = (int)(u * 10) % 2;
-						int gridV = (int)(v * 10) % 2;
-						bool checker = (gridU ^ gridV);
-
-						if (checker) { r = 255; g = 255; b = 255; }
-						else { r = 0;   g = 0;   b = 0; }
-					}
-					else {
-						r = g = b = 50; // background gray
-					}
-
-					int index = (y * engine.WIDTH + x) * 3;
-					pixels[index + 0] = r;
-					pixels[index + 1] = g;
-					pixels[index + 2] = b;*/
-					#pragma endregion
-
 					Ray ray = raytracer.GetInitialRay(camera, x, y, engine.WIDTH, engine.HEIGHT, sagittariusA);
 
 					vec3 tracedColor = raytracer.TraceAndGetColor(ray, sagittariusA, objects);
-					//vec3 tracedColor = vec3(150,100, 60);
 
 					int index = (y * engine.WIDTH + x) * 3;
 					pixels[index + 0] = tracedColor.x;// R
@@ -296,6 +238,28 @@ public:
 
 private:
 
+#pragma region private functions
+	void InitScreenTexture()
+	{
+		pixels.resize(engine.WIDTH * engine.HEIGHT * 3);
+
+		if (engine.texture == 0) {
+			glGenTextures(1, &engine.texture);
+		}
+		glBindTexture(GL_TEXTURE_2D, engine.texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, engine.WIDTH, engine.HEIGHT, 0, GL_RGBA, GL_FLOAT, nullptr);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	// setup object data buffer for gpu
 	void InitSSBO()
 	{
 		numObjects = objects.size();
@@ -307,45 +271,6 @@ private:
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, objectSSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	}
-
-	// test function (skip this)
-	bool intersectSphere(const vec3& origin, const vec3& dir, const vec3& center, float radius, vec3& hitPoint) {
-		vec3 oc = origin - center;
-		float a = dot(dir, dir);
-		float b = 2.0 * dot(oc, dir);
-		float c = dot(oc, oc) - radius * radius;
-		
-		float disc = b * b - 4.0 * a * c;
-		if (disc < 0.0) return false;
-
-		float t = (-b - sqrt(disc)) / (2.0 * a);
-		if (t < 0.0) return false;
-
-		hitPoint = origin + (float)t * dir;
-		return true;
-	}
-
-	void InitScreenTexture() 
-	{
-		pixels.resize(engine.WIDTH * engine.HEIGHT * 3);
-
-		if (engine.texture == 0) {
-			glGenTextures(1, &engine.texture);
-		}
-
-		glBindTexture(GL_TEXTURE_2D, engine.texture);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, engine.WIDTH, engine.HEIGHT, 0, GL_RGBA, GL_FLOAT, nullptr);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		glBindImageTexture(0, engine.texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-
-		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
 	void InitGrid() {
@@ -426,6 +351,7 @@ private:
 		glBindVertexArray(0);
 		//glDisable(GL_DEPTH_TEST);
 	}
+#pragma endregion
 
 public:
 	void Render()

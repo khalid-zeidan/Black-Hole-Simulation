@@ -7,17 +7,17 @@ using namespace glm;
 struct Object 
 {
 public:
-	vec3 position;
-	float radius;
-	vec3 color; // rgba
+	vec4 positionRadius;
+	vec4 color; // rgba
+	vec4 padding;
 
 	bool Intercept(float x, float y, float z) const
 	{
-		float dx = x - position.x;
-		float dy = y - position.y;
-		float dz = z - position.z;
+		float dx = x - positionRadius.x;
+		float dy = y - positionRadius.y;
+		float dz = z - positionRadius.z;
 		float distanceSquared = dx * dx + dy * dy + dz * dz;
-		return distanceSquared <= (radius * radius);
+		return distanceSquared <= (positionRadius.w * positionRadius.w);
 	}
 };
 
