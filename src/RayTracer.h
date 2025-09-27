@@ -40,9 +40,9 @@ struct Ray
 class RayTracer
 {
 public:
-	const float dLambda = 1e6;
-	const float maxSteps = 5000;
-	const float escapeRadius = 1e12;
+	const float dLambda = 1e7;
+	const float maxSteps = 20000;
+	const float escapeRadius = 1e17;
 
 	RayTracer(){}
 

@@ -8,7 +8,7 @@ class Camera
 {
 	// used for zoom
 	float radius = 6.34194e10f;
-	float minRadius = 1e10f, maxRadius = 1e12f;
+	float minRadius = 1e10f, maxRadius = 9.8e10f;
 
 public:
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);

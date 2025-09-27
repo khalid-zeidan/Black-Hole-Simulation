@@ -10,7 +10,8 @@
 using namespace std;
 using namespace glm;
 
-#pragma region shader definitions
+#pragma region shaders and function Utilities
+
 #pragma region grid
 const char* GRID_VERTEX_SHADER_SOURCE = R"glsl(
 #version 330 core
@@ -65,9 +66,8 @@ void main()
 }
 )glsl";
 #pragma endregion
-#pragma endregion
 
-GLuint CompileShader(const char* vertexSource, const char* fragmentSource)  {
+GLuint CompileShader(const char* vertexSource, const char* fragmentSource) {
 	// 1. Compile Vertex Shader
 	GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertex, 1, &vertexSource, NULL);
@@ -137,6 +137,7 @@ GLuint CompileComputeShader(const char* computeSource) {
 
 	return programID;
 }
+#pragma endregion
 
 class Scene
 {
@@ -187,9 +188,9 @@ public:
 			// --- SEND DATA TO GPU ---
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_RS"), (float)sagittariusA.R_S);
 
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), 1e7f);	// 1e7
-			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), 20000);	// 20000
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_escapeRadius"), 1e17f); // 1e17
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), (float)raytracer.dLambda);	// 1e7
+			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), (float)raytracer.maxSteps);	// 20000
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_escapeRadius"), (float)raytracer.escapeRadius); // 1e17
 			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_numObjects"), numObjects);
 
 			vec3 camPos = camera.calculatePosition();
