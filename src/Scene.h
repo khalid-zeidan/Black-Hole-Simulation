@@ -84,7 +84,7 @@ GLuint CompileShader(const char* vertexSource, const char* fragmentSource) {
 	glAttachShader(programID, fragment);
 	glLinkProgram(programID);
 
-	// Minimal Error Checking (Optional but recommended)
+	// Error Checking
 	int success;
 	char infoLog[512];
 	glGetProgramiv(programID, GL_LINK_STATUS, &success);
@@ -93,7 +93,6 @@ GLuint CompileShader(const char* vertexSource, const char* fragmentSource) {
 		std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
 	}
 
-	// 4. Clean up (shaders are linked into the program, so we can delete them)
 	glDeleteShader(vertex);
 	glDeleteShader(fragment);
 
@@ -161,9 +160,9 @@ public:
 
 	// positionRadius_x-y-z-Radius, color, padding must be multiples of 16 - 4*4 + 4*4 +4*4 = 48
 	vector<Object> objects = {
-	{vec4(-1e11, 5e10, 0, 1e10), vec4(255, 255, 0, 0), vec4(0)},
-	{vec4(5e10, 0, 0, 1e10), vec4(255, 0, 0, 0), vec4(0)},
-	{vec4(0.0f, 0.0f, 9e10, 1e10), vec4(255, 0, 255, 0), vec4(0)}
+	{vec4(-1e11, 5e10, 0, 1e10),	vec4(224, 209, 255, 0),	vec4(0)},
+	{vec4(9e10, -9e10, 0, 3e10),		vec4(255, 0, 0, 0),		vec4(0)},
+	{vec4(0.0f, 0.0f, 9e10, 1e10),	vec4(255, 114, 33, 0),	vec4(0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -187,6 +186,8 @@ public:
 
 			// --- SEND DATA TO GPU ---
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_RS"), (float)sagittariusA.R_S);
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_AccretionRIN"), (float)sagittariusA.R_S*3);
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_AccretionROUT"), (float)sagittariusA.R_S*5);
 
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_dLambda"), (float)raytracer.dLambda);	// 1e7
 			glUniform1i(glGetUniformLocation(engine.computeProgram, "u_maxSteps"), (float)raytracer.maxSteps);	// 20000
@@ -203,7 +204,7 @@ public:
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionY"), (float)engine.HEIGHT);
 
 			// --- 3. DISPATCH THE COMPUTE SHADER ---
-			const int local_size = 16;
+			const int local_size = 32;
 			int num_groups_x = (engine.WIDTH + local_size - 1) / local_size;
 			int num_groups_y = (engine.HEIGHT + local_size - 1) / local_size;
 
@@ -277,7 +278,7 @@ private:
 	void InitGrid() {
 		// Use a grid size that is manageable for the current camera zoom
 		float size = 1e12f;
-		float step = 2e10f;
+		float step = 8e10f;
 		std::vector<glm::vec3> vertices;
 
 		for (float i = -size; i <= size; i += step) {
@@ -360,7 +361,7 @@ public:
 		engine.Clear();
 
 		DrawQuad();
-		DrawGrid();
+		//DrawGrid();
 	}
 
 }scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*

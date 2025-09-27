@@ -1,7 +1,7 @@
 #pragma once
 const char* COMPUTE_SHADER_SOURCE = R"glsl(
 #version 430 core
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 layout(rgba32f, binding = 0) uniform image2D outImage;
 
 // constants
@@ -16,6 +16,8 @@ uniform float u_escapeRadius;
 
 // blackhole uniforms
 uniform float u_RS;
+uniform float u_AccretionRIN;
+uniform float u_AccretionROUT;
 
 // camera uniforms
 uniform vec3 u_cameraPos;
@@ -74,6 +76,27 @@ void CartesianToSpherical(inout Ray ray)
     }
     ray.theta = acos(ray.cartesianPos.z / ray.r);
     ray.phi = atan(ray.cartesianPos.y, ray.cartesianPos.x);
+}
+
+// ACCRETION DISK INTERCEPT AND GET COLOR
+
+vec3 GetAccretionDiskColor(float r)
+{
+    float r_ratio = max(1.0, r / u_AccretionRIN);
+    float temp_proxy = pow(r_ratio, -0.75); // T ~ r^(-3/4)
+
+    float intensity = temp_proxy * temp_proxy * 1.4; // Multiplier '5.0' for visual brightness
+
+    // 3. Create a hot color gradient (Hot: White/Blue -> Cool: Red/Orange)
+    // The hottest areas are blue-white in high-energy visualization.
+
+    vec3 hot_color = mix(
+        vec3(0.8, 0.5, 0.0), // Blue-White (Hottest)
+        vec3(0.8, 0.0, 0.0), // Red (Coolest)
+        (r - u_AccretionRIN) / (u_AccretionROUT - u_AccretionRIN) // Interpolation factor (0 at R_ISCO, 1 at R_OUT)
+    );
+
+    return clamp(hot_color * intensity, 0.0, 1.0);
 }
 
 // RK4 AND CARTESIAN EQUATIONS
@@ -275,11 +298,36 @@ void RK4STEP(inout Ray ray)
 vec3 TraceAndGetColor(Ray initialRay)
 {
     Ray currentRay = initialRay;
+    Ray prevRay = initialRay;
 
     for (int i = 0; i < u_maxSteps; i++)
     {
+        prevRay = initialRay;
+
         RK4STEP(currentRay);
         SphericalToCartesian(currentRay);
+
+        float prevY = prevRay.r * sin(prevRay.theta) * sin(prevRay.phi); 
+        // Current position Y-coordinate
+        float currentY = currentRay.r * sin(currentRay.theta) * sin(currentRay.phi);
+
+        // 2. Check if the ray crossed the equatorial plane (y-coordinate changed sign)
+        if (prevY * currentY < 0.0)
+        {
+            // Ray crossed the plane y=0. Find the intersection point by linear interpolation (LOD step is small)
+            // t = |y_prev| / (|y_prev| + |y_current|)
+            float t = abs(prevY) / (abs(prevY) + abs(currentY));
+
+            // Interpolate the spherical radius 'r' at the crossing point
+            float intersection_r = mix(prevRay.r, currentRay.r, t);
+
+            // 3. Check if the intersection radius is within the disk's bounds
+            if (intersection_r >= u_AccretionRIN && intersection_r <= u_AccretionROUT)
+            {
+                // Hit the accretion disk
+                return GetAccretionDiskColor(intersection_r);
+            }
+        }
 
         if (currentRay.r > u_escapeRadius)
         {
@@ -288,7 +336,7 @@ vec3 TraceAndGetColor(Ray initialRay)
 
         if (currentRay.r <= u_RS)
         {
-            return vec3(1.0, 1.0, 1.0);
+            return vec3(0.0, 0.0, 0.0);
         }
 
         for (int j = 0; j < u_numObjects; j++)

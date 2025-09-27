@@ -8,7 +8,7 @@ class Camera
 {
 	// used for zoom
 	float radius = 6.34194e10f;
-	float minRadius = 1e10f, maxRadius = 9.8e10f;
+	float minRadius = 1.5e10f, maxRadius = 11e10f;
 
 public:
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);
@@ -29,7 +29,7 @@ public:
 
 	// calculates position in world space based on elevation, zoom and azimuth
 	vec3 calculatePosition() const {
-		float clampedElevation = glm::clamp(elevation, 0.01f, float(M_PI) - 0.01f);
+		float clampedElevation = clamp(elevation, 0.01f, float(M_PI) - 0.01f);
 
 		float x = radius * sin(clampedElevation) * cos(azimuth);
 		float y = radius * cos(clampedElevation);
@@ -42,7 +42,7 @@ public:
 		azimuth += deltaX * sensitivity;
 		elevation -= deltaY * sensitivity;
 
-		elevation = glm::clamp(elevation, 0.01f, float(M_PI) - 0.01f);
+		elevation = clamp(elevation, 0.01f, float(M_PI) - 0.01f);
 	}
 
 	void Zoom(float delta) {
