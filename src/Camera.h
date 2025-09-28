@@ -8,7 +8,7 @@ class Camera
 {
 	// used for zoom
 	float radius = 1.1e11f;
-	float minRadius = 1.5e10f, maxRadius = 11e10f;
+	float minRadius = 1.5e10f, maxRadius = 11e12f;
 
 public:
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);
@@ -60,7 +60,7 @@ public:
 	}
 
 	mat4 GetProjectionMatrix(float width, float height) const {
-		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 1000.0f);
+		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 10000.0f);
 		// FOV, aspect ratio, near & far plane
 	}
 

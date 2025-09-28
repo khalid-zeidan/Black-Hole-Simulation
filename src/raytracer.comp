@@ -78,7 +78,7 @@ void CartesianToSpherical(inout Ray ray)
 
 // ACCRETION DISK INTERCEPT AND GET COLOR
 
-vec3 GetAccretionDiskColor(float r)
+vec4 GetAccretionDiskColor(float r)
 {
     float r_ratio = max(1.0, r / u_AccretionRIN);
     float temp_proxy = pow(r_ratio, -0.75); // T ~ r^(-3/4)
@@ -88,9 +88,9 @@ vec3 GetAccretionDiskColor(float r)
     // 3. Create a hot color gradient (Hot: White/Blue -> Cool: Red/Orange)
     // The hottest areas are blue-white in high-energy visualization.
 
-    vec3 hot_color = mix(
-        vec3(0.8, 0.5, 0.0), // Blue-White (Hottest)
-        vec3(0.5, 0.0, 0.0), // Red (Coolest)
+    vec4 hot_color = mix(
+        vec4(0.8, 0.5, 0.0, 1.0), // Blue-White (Hottest)
+        vec4(0.8, 0.0, 0.0, 1.0), // Red (Coolest)
         (r - u_AccretionRIN) / (u_AccretionROUT - u_AccretionRIN) // Interpolation factor (0 at R_ISCO, 1 at R_OUT)
     );
 
@@ -293,7 +293,7 @@ void RK4STEP(inout Ray ray)
     ray.dphi += sixth_dL * (k1_d2phi + 2.0 * k2_d2phi + 2.0 * k3_d2phi + k4_d2phi);
 }
 
-vec3 TraceAndGetColor(Ray initialRay)
+vec4 TraceAndGetColor(Ray initialRay)
 {
     Ray currentRay = initialRay;
     Ray prevRay = initialRay;
@@ -305,9 +305,9 @@ vec3 TraceAndGetColor(Ray initialRay)
         RK4STEP(currentRay);
         SphericalToCartesian(currentRay);
 
-        float prevY = prevRay.r * cos(prevRay.theta);
-        // Current position y-coordinate
-        float currentY = currentRay.r * cos(currentRay.theta);
+        float prevY = prevRay.r * sin(prevRay.theta) * sin(prevRay.phi);
+        // Current position Y-coordinate
+        float currentY = currentRay.r * sin(currentRay.theta) * sin(currentRay.phi);
 
         // 2. Check if the ray crossed the equatorial plane (y-coordinate changed sign)
         if (prevY * currentY < 0.0)
@@ -329,12 +329,12 @@ vec3 TraceAndGetColor(Ray initialRay)
 
         if (currentRay.r > u_escapeRadius)
         {
-            return vec3(0.5, 0.5, 0.5);
+            return vec4(0.0, 0.0, 0.0, 0.0);
         }
 
         if (currentRay.r <= u_RS)
         {
-            return vec3(0.0, 0.0, 0.0);
+            return vec4(0.0, 0.0, 0.0, 1.0);
         }
 
         for (int j = 0; j < u_numObjects; j++)
@@ -342,13 +342,13 @@ vec3 TraceAndGetColor(Ray initialRay)
             if (InterceptObject(currentRay.cartesianPos, u_objects[j]))
             {
                 vec4 col = u_objects[j].color / 255.0;
-                return vec3(col.x, col.y, col.z);
+                return vec4(col.x, col.y, col.z, 1.0);
             }
         }
     }
 
     // Default return color if max steps reached (black)
-    return vec3(0.0, 0.0, 0.0);
+    return vec4(0.0, 0.0, 0.0, 0.0);
 }
 
 void main()
@@ -359,8 +359,8 @@ void main()
 
     Ray initialRay = GetInitialRay(vec2(pixelCoords));
 
-    vec3 color = TraceAndGetColor(initialRay);
+    vec4 color = TraceAndGetColor(initialRay);
 
-    imageStore(outImage, pixelCoords, vec4(color, 1.0));
+    imageStore(outImage, pixelCoords, color);
     return;
 }

@@ -277,47 +277,48 @@ private:
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
-	void InitGrid() {
-		// Use a grid size that is manageable for the current camera zoom
+	void InitGrid() 
+	{
 		float size = 1e12f;
 		float step = 8e10f;
-		std::vector<glm::vec3> vertices;
+
+		vector<vec3> vertices;
 
 		for (float i = -size; i <= size; i += step) {
 			// X-axis lines
-			vertices.push_back(glm::vec3(i, 0.0f, -size));
-			vertices.push_back(glm::vec3(i, 0.0f, size));
+			vertices.push_back(vec3(i, 0.0f, -size));
+			vertices.push_back(vec3(i, 0.0f, size));
 
 			// Z-axis lines
-			vertices.push_back(glm::vec3(-size, 0.0f, i));
-			vertices.push_back(glm::vec3(size, 0.0f, i));
+			vertices.push_back(vec3(-size, 0.0f, i));
+			vertices.push_back(vec3(size, 0.0f, i));
 		}
+
 		lineCount = vertices.size();
 
-		// 1. Generate and bind VAO/VBO
 		glGenVertexArrays(1, &gridVAO);
 		glGenBuffers(1, &gridVBO);
 		glBindVertexArray(gridVAO);
 
-		// 2. Upload vertex data
 		glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
-		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec3), &vertices[0], GL_STATIC_DRAW);
 
-		// 3. Configure Vertex Attributes (location 0 in shader)
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (void*)0);
 		glEnableVertexAttribArray(0);
 
-		// 4. Unbind
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 	}
 
 	void DrawQuad() const
 	{
+		glUseProgram(quadShaderProgramID);
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		glDepthMask(GL_FALSE); // <--- CRITICAL: Prevents depth buffer writes
 		glDisable(GL_DEPTH_TEST);
-
-		glUseProgram(quadShaderProgramID);
 
 		// Bind the texture to Texture Unit 0
 		glActiveTexture(GL_TEXTURE0);
@@ -330,7 +331,10 @@ private:
 		glBindVertexArray(0);
 
 		glUseProgram(0);
+
+		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_BLEND);
 	}
 
 	void DrawGrid() const {
@@ -338,17 +342,14 @@ private:
 		mat4 view = camera.GetViewMatrix();
 		mat4 model = mat4(1.0f);
 
-		// 1. Use Shader and Set Uniforms
 		glEnable(GL_DEPTH_TEST);
 
 		glUseProgram(gridShaderProgramID);
 
-		// Find Uniform Locations and set them
 		glUniformMatrix4fv(glGetUniformLocation(gridShaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 		glUniformMatrix4fv(glGetUniformLocation(gridShaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(glGetUniformLocation(gridShaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-		// 2. Draw Grid using VAO
 		glLineWidth(1.0f);
 		glBindVertexArray(gridVAO);
 		glDrawArrays(GL_LINES, 0, lineCount);
@@ -362,8 +363,8 @@ public:
 	{
 		engine.Clear();
 
-		DrawQuad();
 		DrawGrid();
+		DrawQuad();
 	}
 
 }scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*
