@@ -163,8 +163,8 @@ public:
 	// feel free to customize the object's position and color when yall try this!
 	// positionRadius_x-y-z-Radius, color, padding must be multiples of 16 - 4*4 + 4*4 +4*4 = 48
 	vector<Object> objects = {
-	//{vec4(-1e11, 5e10, 0, 2.5e10),	vec4(252, 232, 246, 0),	vec4(0)},
-	//{vec4(2e10, -7e10, -9e10, 3e10),vec4(247, 56, 35, 0),	vec4(0)},
+	{vec4(-1e11, 5e10, 0, 2.5e10),	vec4(252, 232, 246, 0),	vec4(0)},
+	{vec4(2e10, -7e10, -9e10, 1e10),vec4(247, 56, 35, 0),	vec4(0)},
 	//{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(227, 61, 0, 0),	vec4(0)},
 	{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(252, 232, 246, 0),	vec4(0)}
 	};
@@ -184,7 +184,7 @@ public:
 
 	void Update()
 	{
-		camera.LogCameraData();
+		//camera.LogCameraData();
 
 		if (engine.computeProgram) 
 		{
