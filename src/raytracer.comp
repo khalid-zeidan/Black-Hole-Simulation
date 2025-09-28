@@ -86,9 +86,6 @@ vec4 GetAccretionDiskColor(float r)
 
     float intensity = temp_proxy * temp_proxy * 1.4; // Multiplier '5.0' for visual brightness
 
-    // 3. Create a hot color gradient (Hot: White/Blue -> Cool: Red/Orange)
-    // The hottest areas are blue-white in high-energy visualization.
-
     vec4 hot_color = mix(
         vec4(0.8, 0.5, 0.0, 1.0),
         vec4(0.8, 0.0, 0.0, 1.0),

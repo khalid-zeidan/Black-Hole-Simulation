@@ -67,18 +67,19 @@ void main()
 )glsl";
 #pragma endregion
 
-GLuint CompileShader(const char* vertexSource, const char* fragmentSource) {
-	// 1. Compile Vertex Shader
+GLuint CompileShader(const char* vertexSource, const char* fragmentSource) 
+{
+	// Compile Vertex Shader
 	GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertex, 1, &vertexSource, NULL);
 	glCompileShader(vertex);
 
-	// 2. Compile Fragment Shader
+	// Compile Fragment Shader
 	GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fragment, 1, &fragmentSource, NULL);
 	glCompileShader(fragment);
 
-	// 3. Link Program
+	// Link Program
 	GLuint programID = glCreateProgram();
 	glAttachShader(programID, vertex);
 	glAttachShader(programID, fragment);
@@ -100,7 +101,7 @@ GLuint CompileShader(const char* vertexSource, const char* fragmentSource) {
 }
 
 GLuint CompileComputeShader(const char* computeSource) {
-	// 1. Compile Compute Shader
+	// Compile Compute Shader
 	GLuint compute = glCreateShader(GL_COMPUTE_SHADER);
 	glShaderSource(compute, 1, &computeSource, NULL);
 	glCompileShader(compute);
@@ -116,7 +117,7 @@ GLuint CompileComputeShader(const char* computeSource) {
 		return 0;
 	}
 
-	// 2. Link Program
+	// Link Program
 	GLuint programID = glCreateProgram();
 	glAttachShader(programID, compute);
 	glLinkProgram(programID);
@@ -131,7 +132,7 @@ GLuint CompileComputeShader(const char* computeSource) {
 		return 0;
 	}
 
-	// 3. Clean up
+	// Clean up
 	glDeleteShader(compute);
 
 	return programID;
@@ -145,24 +146,27 @@ public:
 	RayTracer raytracer;
 
 	BlackHole sagittariusA;
-	//Camera camera;
 
 	// grid stuff
 	GLuint gridShaderProgramID;
 	GLuint gridVAO, gridVBO;
 	int lineCount;
 
+	// used for rendering the screen
 	GLuint quadShaderProgramID;
 	vector<unsigned char> pixels;
 
+	// objects data sent using this
 	GLuint objectSSBO;
 	int numObjects;
 
+	// feel free to customize the object's position and color when yall try this!
 	// positionRadius_x-y-z-Radius, color, padding must be multiples of 16 - 4*4 + 4*4 +4*4 = 48
 	vector<Object> objects = {
-	{vec4(-1e11, 5e10, 0, 1e10),	vec4(224, 209, 255, 0),	vec4(0)},
-	{vec4(2e10, -7e10, -9e10, 3e10),		vec4(255, 0, 0, 0),		vec4(0)},
-	{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(255, 114, 33, 0),	vec4(0)}
+	//{vec4(-1e11, 5e10, 0, 2.5e10),	vec4(252, 232, 246, 0),	vec4(0)},
+	//{vec4(2e10, -7e10, -9e10, 3e10),vec4(247, 56, 35, 0),	vec4(0)},
+	//{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(227, 61, 0, 0),	vec4(0)},
+	{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(252, 232, 246, 0),	vec4(0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -180,13 +184,13 @@ public:
 
 	void Update()
 	{
-		//camera.LogCameraData();
+		camera.LogCameraData();
 
 		if (engine.computeProgram) 
 		{
 			glUseProgram(engine.computeProgram);
 
-			// --- SEND DATA TO GPU ---
+			// SEND DATA TO GPU
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_RS"), (float)sagittariusA.R_S);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_AccretionRIN"), (float)sagittariusA.R_S*3);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_AccretionROUT"), (float)sagittariusA.R_S*5);
@@ -202,11 +206,11 @@ public:
 			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraPos"), 1, value_ptr(camPos));
 			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraTarget"), 1, value_ptr(camTarget));
 
-			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_isCameraMoving"), camera.dragging);
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_isCameraMoving"), camera.dragging); // unused dw
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionX"), (float)engine.WIDTH);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionY"), (float)engine.HEIGHT);
 
-			// --- 3. DISPATCH THE COMPUTE SHADER ---
+			// DISPATCH THE COMPUTE SHADER
 			const int local_size = 32;
 			int num_groups_x = (engine.WIDTH + local_size - 1) / local_size;
 			int num_groups_y = (engine.HEIGHT + local_size - 1) / local_size;
@@ -218,7 +222,7 @@ public:
 		}
 		else 
 		{
-			cout << "FALLBACK ON CPU \n";
+			cout << "FALLBACK ON CPU \n WARNING OUTDATED RAYTRACER NO ACCRETION DISK!!! \n";
 
 			for (int x = 0; x < engine.WIDTH; x++)
 			{
@@ -318,7 +322,7 @@ private:
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-		glDepthMask(GL_FALSE); // <--- CRITICAL: Prevents depth buffer writes
+		glDepthMask(GL_FALSE);
 		glDisable(GL_DEPTH_TEST);
 
 		// Bind the texture to Texture Unit 0

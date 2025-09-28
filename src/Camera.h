@@ -8,13 +8,13 @@ class Camera
 {
 	// used for zoom
 	float radius = 1.1e11f;
-	float minRadius = 1.5e10f, maxRadius = 11e12f;
+	float minRadius = 1.5e10f, maxRadius = 15e10f;
 
 public:
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);
 
-	float azimuth = -1.23;// 0.0f;			 // point from left to right on the sphere 360 degrees
-	float elevation = 1.53f;//-M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
+	float azimuth = 2.86;// 0.0f;			 // point from left to right on the sphere 360 degrees
+	float elevation = 1.54f;//-M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
 
 private:
 	float sensitivity = 0.01f;
@@ -60,7 +60,7 @@ public:
 	}
 
 	mat4 GetProjectionMatrix(float width, float height) const {
-		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 10000.0f);
+		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 100.0f);
 		// FOV, aspect ratio, near & far plane
 	}
 

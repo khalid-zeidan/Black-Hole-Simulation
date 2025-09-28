@@ -40,9 +40,11 @@ struct Ray
 class RayTracer
 {
 public:
-	const float dLambda = 1e7;
+	// adjust these for performance vs quality (smalled dlambda = more accuracy but will need more steps)
+	// NEEDS TO BE BALANCED, VALUES TOO LOW WONT RENDER ANYTHING!!!!!
+	const float dLambda = 1e7; 
 	const float maxSteps = 25000;
-	const float escapeRadius = 1e17;
+	const float escapeRadius = 1e15;
 
 	RayTracer(){}
 
