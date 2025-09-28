@@ -162,7 +162,7 @@ public:
 	vector<Object> objects = {
 	{vec4(-1e11, 5e10, 0, 1e10),	vec4(224, 209, 255, 0),	vec4(0)},
 	{vec4(9e10, -9e10, 0, 3e10),		vec4(255, 0, 0, 0),		vec4(0)},
-	{vec4(0.0f, 0.0f, 9e10, 1e10),	vec4(255, 114, 33, 0),	vec4(0)}
+	{vec4(0.0f, 0.0f, 9e10, 3e10),	vec4(255, 114, 33, 0),	vec4(0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -180,6 +180,8 @@ public:
 
 	void Update()
 	{
+		//camera.LogCameraData();
+
 		if (engine.computeProgram) 
 		{
 			glUseProgram(engine.computeProgram);
@@ -361,7 +363,7 @@ public:
 		engine.Clear();
 
 		DrawQuad();
-		//DrawGrid();
+		DrawGrid();
 	}
 
 }scene(vec3(0.0f, 0.0f, 0.0f), 8.54e36); //pos of blackhole, mass of sagittarius A*

@@ -129,7 +129,7 @@ Ray GetInitialRay(vec2 pixelPos)
     right = normalize(cross(forward, worldUp));
     vec3 up = normalize(cross(right, forward));
 
-    vec3 dir = normalize(forward + px * right + py * up);
+    vec3 dir = normalize(forward + px * right + py * -up);
     initialRay.direction = dir;
     initialRay.cartesianPos = u_cameraPos;
 

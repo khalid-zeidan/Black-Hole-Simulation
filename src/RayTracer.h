@@ -17,14 +17,14 @@ struct Ray
 	float E; // Energy
 	float L; // Angular Momentum
 
-	void UpdateCartesian()
+	void SphericalToCartesian()
 	{
 		cartesianPosition.x = r * sin(theta) * cos(phi);
 		cartesianPosition.y = r * sin(theta) * sin(phi);
 		cartesianPosition.z = r * cos(theta);
 	}
 
-	void CartesianToPolar(const vec3& cartesian) 
+	void CartesianToSpherical(const vec3& cartesian) 
 	{
 		r = length(cartesian);
 		if (r < 1e-10) { // Avoid division by zero at the origin

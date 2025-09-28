@@ -7,14 +7,14 @@ using namespace std;
 class Camera
 {
 	// used for zoom
-	float radius = 6.34194e10f;
+	float radius = 1.1e11f;
 	float minRadius = 1.5e10f, maxRadius = 11e10f;
 
 public:
 	vec3 target = vec3(0.0f, 0.0f, 0.0f);
 
-	float azimuth = 0.0f;			 // point from left to right on the sphere 360 degrees
-	float elevation = -M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
+	float azimuth = -1.23;// 0.0f;			 // point from left to right on the sphere 360 degrees
+	float elevation = 1.53f;//-M_PI / 1.5f;  // point from up to down on the sphere 180 degrees only
 
 private:
 	float sensitivity = 0.01f;
@@ -40,7 +40,7 @@ public:
 
 	void Rotate(float deltaX, float deltaY) {
 		azimuth += deltaX * sensitivity;
-		elevation -= deltaY * sensitivity;
+		elevation += deltaY * sensitivity;
 
 		elevation = clamp(elevation, 0.01f, float(M_PI) - 0.01f);
 	}
@@ -62,5 +62,11 @@ public:
 	mat4 GetProjectionMatrix(float width, float height) const {
 		return perspective(radians(60.0f), width / height, minRadius * 0.1f, maxRadius * 1000.0f);
 		// FOV, aspect ratio, near & far plane
+	}
+
+	void LogCameraData() {
+		cout << "AZIMUTH: " << azimuth << endl;
+		cout << "ELEVATION: " << elevation << endl;
+		cout << "RADIUS: " << radius << endl;
 	}
 };
