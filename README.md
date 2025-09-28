@@ -17,3 +17,7 @@ This simulation models light propagation by using the Schwarzschild Metric to de
 ![Screenshot of the Black Hole Raytracer Simulation](READMEPictures/2.png)
 ![Screenshot of the Black Hole Raytracer Simulation](READMEPictures/3.png)
 ![Screenshot of the Black Hole Raytracer Simulation](READMEPictures/4.png)
+
+## Minimum Requirements
+- Anything better than rtx 3060 or close should work.
+- any cpu is fine, simulation is GPU dependent.
