@@ -161,8 +161,8 @@ public:
 	// positionRadius_x-y-z-Radius, color, padding must be multiples of 16 - 4*4 + 4*4 +4*4 = 48
 	vector<Object> objects = {
 	{vec4(-1e11, 5e10, 0, 1e10),	vec4(224, 209, 255, 0),	vec4(0)},
-	{vec4(9e10, -9e10, 0, 3e10),		vec4(255, 0, 0, 0),		vec4(0)},
-	{vec4(0.0f, 0.0f, 9e10, 3e10),	vec4(255, 114, 33, 0),	vec4(0)}
+	{vec4(2e10, -7e10, -9e10, 3e10),		vec4(255, 0, 0, 0),		vec4(0)},
+	{vec4(0.0f, 0.0f, 10e10, 2e10),	vec4(255, 114, 33, 0),	vec4(0)}
 	};
 
 	Scene(vec3 pos, double mass) : sagittariusA(pos, mass) 
@@ -202,6 +202,7 @@ public:
 			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraPos"), 1, value_ptr(camPos));
 			glUniform3fv(glGetUniformLocation(engine.computeProgram, "u_cameraTarget"), 1, value_ptr(camTarget));
 
+			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_isCameraMoving"), camera.dragging);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionX"), (float)engine.WIDTH);
 			glUniform1f(glGetUniformLocation(engine.computeProgram, "u_ScreenResolutionY"), (float)engine.HEIGHT);
 

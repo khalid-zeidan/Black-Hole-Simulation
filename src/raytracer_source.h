@@ -23,6 +23,7 @@ uniform float u_AccretionROUT;
 uniform vec3 u_cameraPos;
 uniform vec3 u_cameraTarget;
 
+uniform bool u_isCameraMoving;
 uniform float u_ScreenResolutionX;
 uniform float u_ScreenResolutionY;
 
@@ -355,8 +356,11 @@ vec4 TraceAndGetColor(Ray initialRay)
 
 void main()
 {
+    float width = u_isCameraMoving ? u_ScreenResolutionX : u_ScreenResolutionX;
+    float height = u_isCameraMoving ? u_ScreenResolutionX : u_ScreenResolutionY;
+
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
-    if (pixelCoords.x >= u_ScreenResolutionX || pixelCoords.y >= u_ScreenResolutionY)
+    if (pixelCoords.x >= width || pixelCoords.y >= height)
         return;
 
     Ray initialRay = GetInitialRay(vec2(pixelCoords));

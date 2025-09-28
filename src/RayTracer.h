@@ -41,7 +41,7 @@ class RayTracer
 {
 public:
 	const float dLambda = 1e7;
-	const float maxSteps = 20000;
+	const float maxSteps = 25000;
 	const float escapeRadius = 1e17;
 
 	RayTracer(){}
