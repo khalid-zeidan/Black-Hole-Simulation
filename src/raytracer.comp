@@ -89,9 +89,9 @@ vec4 GetAccretionDiskColor(float r)
     // The hottest areas are blue-white in high-energy visualization.
 
     vec4 hot_color = mix(
-        vec4(0.8, 0.5, 0.0, 1.0), // Blue-White (Hottest)
-        vec4(0.8, 0.0, 0.0, 1.0), // Red (Coolest)
-        (r - u_AccretionRIN) / (u_AccretionROUT - u_AccretionRIN) // Interpolation factor (0 at R_ISCO, 1 at R_OUT)
+        vec4(0.8, 0.5, 0.0, 1.0),
+        vec4(0.8, 0.0, 0.0, 1.0),
+        (r - u_AccretionRIN) / (u_AccretionROUT - u_AccretionRIN)
     );
 
     return clamp(hot_color * intensity, 0.0, 1.0);

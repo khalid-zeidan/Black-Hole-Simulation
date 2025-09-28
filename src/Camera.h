@@ -69,4 +69,48 @@ public:
 		cout << "ELEVATION: " << elevation << endl;
 		cout << "RADIUS: " << radius << endl;
 	}
-};
+}camera;
+
+#pragma region Camera Input detection
+//checks if mouse buttons are pressed
+void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods)
+{
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	{
+		camera.dragging = true;
+	}
+	else
+	{
+		camera.dragging = false;
+		camera.firstMouse = true;
+	}
+}
+
+// checks mouse move positions
+void mouseMoveCallBack(GLFWwindow* window, double xpos, double ypos)
+{
+	if (camera.firstMouse)
+	{
+		camera.lastMouseX = xpos;
+		camera.lastMouseY = ypos;
+		camera.firstMouse = false;
+	}
+
+	float deltaX = (float)(xpos - camera.lastMouseX);
+	float deltaY = (float)(camera.lastMouseY - ypos);
+
+	camera.lastMouseX = xpos;
+	camera.lastMouseY = ypos;
+
+	if (camera.dragging) {
+		// Pass the delta values to the camera's rotate method
+		camera.Rotate(deltaX, deltaY);
+	}
+}
+
+//checks mouse scroll 
+void scrollCallBack(GLFWwindow* window, double xoffset, double yoffset)
+{
+	camera.Zoom(yoffset);
+}
+#pragma endregion
